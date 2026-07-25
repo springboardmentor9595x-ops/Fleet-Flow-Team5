@@ -122,25 +122,6 @@ pip install -r requirements.txt
 
 ---
 
-# 🔐 Environment Variables
-
-Create a `.env` file inside the backend folder.
-
-Example:
-
-```env
-DATABASE_URL=postgresql://postgres:your_password@localhost:5432/fleetflow_db
-
-SECRET_KEY=your_secret_key
-
-ALGORITHM=HS256
-
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-
-CORS_ORIGINS=http://localhost:5173
-```
-
-> **Do not commit your actual `.env` file to GitHub.**
 
 ---
 
