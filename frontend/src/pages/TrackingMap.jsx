@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 
-/* ── Constants ──────────────────────────────────────────────────────────── */
+
 const CITY_COORDS = {
   kollam: [8.8932, 76.6141], mumbai: [19.0760, 72.8777], pune: [18.5204, 73.8567],
   delhi: [28.6139, 77.2090], bangalore: [12.9716, 77.5946], chennai: [13.0827, 80.2707],
