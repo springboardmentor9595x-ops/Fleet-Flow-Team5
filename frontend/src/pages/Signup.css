@@ -1,0 +1,14 @@
+.signup-container {
+  max-width: 520px;
+  margin: 2rem 0;
+}
+
+.signup-card {
+  padding: 2.25rem 2rem;
+}
+
+@media (max-width: 560px) {
+  .signup-card {
+    padding: 1.75rem 1.25rem;
+  }
+}

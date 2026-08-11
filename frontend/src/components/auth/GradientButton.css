@@ -1,0 +1,23 @@
+.gradient-button {
+  width: 100%;
+  appearance: none;
+  border: none;
+  border-radius: 1.5rem;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%);
+  color: #ffffff;
+  font-size: 0.97rem;
+  font-weight: 700;
+  transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 16px 36px rgba(14, 165, 233, 0.24);
+}
+
+.gradient-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.gradient-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+}

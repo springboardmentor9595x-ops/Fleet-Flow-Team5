@@ -1,0 +1,239 @@
+.live-map-page-wrapper {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+}
+
+.map-page-body {
+  display: flex;
+  flex: 1;
+  height: calc(100vh - 68px);
+  position: relative;
+}
+
+.map-control-sidebar {
+  width: 360px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-color);
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 20px;
+  overflow-y: auto;
+  z-index: 10;
+  box-shadow: var(--shadow-lg);
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-section h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.sidebar-sub {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.ws-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 3px 8px;
+  border-radius: 9999px;
+  width: fit-content;
+  margin-bottom: 6px;
+}
+
+.live-pulse-dot {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.telemetry-card {
+  background: #0f172a;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tel-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tel-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.tel-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.tel-val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  margin-top: 1px;
+}
+
+.geofence-alert-box {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-action-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+}
+
+.map-view-container {
+  flex: 1;
+  height: 100%;
+  position: relative;
+}
+
+.leaflet-full-frame {
+  width: 100%;
+  height: 100%;
+  background: #0f172a;
+}
+
+/* Custom Marker Pins */
+.custom-vehicle-marker-wrapper {
+  position: relative;
+}
+
+.vehicle-marker-pin {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.8);
+  position: relative;
+}
+
+.vehicle-marker-pin.delayed {
+  background: #f59e0b;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.8);
+}
+
+.marker-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid #3b82f6;
+  animation: ripple 2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}
+
+@keyframes ripple {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.marker-center {
+  font-size: 16px;
+}
+
+.custom-hub-marker {
+  position: relative;
+}
+
+.hub-pin {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.hub-pin.origin {
+  background: #10b981;
+}
+
+.hub-pin.dest {
+  background: #ef4444;
+}
+
+.map-popup-card h4 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.map-popup-card p {
+  margin: 2px 0;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 900px) {
+  .map-page-body {
+    flex-direction: column;
+  }
+  .map-control-sidebar {
+    width: 100%;
+    height: 300px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+}

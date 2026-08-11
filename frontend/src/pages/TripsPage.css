@@ -1,0 +1,124 @@
+.trips-page-wrapper {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+.dispatch-builder-card {
+  margin-bottom: 32px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.section-title-row h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 800px) {
+  .form-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.section-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-header-bar h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.count-pill {
+  background: #0f172a;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.trip-route-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.trip-route-cell strong {
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.trip-id-sub {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.trip-metrics-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trip-metrics-cell span {
+  font-weight: 700;
+  color: #fff;
+}
+
+.duration-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.route-profile-tag {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  background: #0f172a;
+  border: 1px solid var(--border-color);
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+
+.trip-actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
