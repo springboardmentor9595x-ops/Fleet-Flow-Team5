@@ -1,37 +1,51 @@
 import api from "./axios";
 
 export const fleetApi = {
-  /**
-   * List all vehicles.
-   * @param {string|null} status - Optional filter: "Available" | "In Use" | "Maintenance"
-   */
+  // List all vehicles
   getVehicles: (status = null) => {
     const params = { limit: 200 };
     if (status) params.status = status;
     return api.get("/vehicles/", { params }).then((r) => r.data);
   },
 
-  /**
-   * Get a single vehicle by ID.
-   */
+  // Get single vehicle
   getVehicle: (vehicleId) =>
     api.get(`/vehicles/${vehicleId}`).then((r) => r.data),
 
-  /**
-   * List all drivers.
-   * @param {string|null} status - Optional filter: "Active" | "Inactive"
-   */
+  // Create vehicle
+  createVehicle: (data) =>
+    api.post("/vehicles/", data).then((r) => r.data),
+
+  // Update vehicle
+  updateVehicle: (vehicleId, data) =>
+    api.put(`/vehicles/${vehicleId}`, data).then((r) => r.data),
+
+  // Delete vehicle
+  deleteVehicle: (vehicleId) =>
+    api.delete(`/vehicles/${vehicleId}`).then((r) => r.data),
+
+  // List all drivers
   getDrivers: (status = null) => {
     const params = { limit: 200 };
     if (status) params.status = status;
     return api.get("/drivers/", { params }).then((r) => r.data);
   },
 
-  /**
-   * Get a single driver by ID.
-   */
+  // Get single driver
   getDriver: (driverId) =>
     api.get(`/drivers/${driverId}`).then((r) => r.data),
+
+  // Create driver
+  createDriver: (data) =>
+    api.post("/drivers/", data).then((r) => r.data),
+
+  // Update driver
+  updateDriver: (driverId, data) =>
+    api.put(`/drivers/${driverId}`, data).then((r) => r.data),
+
+  // Delete driver
+  deleteDriver: (driverId) =>
+    api.delete(`/drivers/${driverId}`).then((r) => r.data),
 };
 
 export default fleetApi;

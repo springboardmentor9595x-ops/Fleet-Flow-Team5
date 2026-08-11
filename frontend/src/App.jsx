@@ -8,6 +8,10 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Shipments from "./pages/Shipments";
 import ShipmentDetail from "./pages/ShipmentDetail";
+import Vehicles from "./pages/Vehicles";
+import Drivers from "./pages/Drivers";
+import Trips from "./pages/Trips";
+import Maintenance from "./pages/Maintenance";
 import TrackingMap from "./pages/TrackingMap";
 import VerifyEmail from "./pages/VerifyEmail";
 import { ToastContainer } from "react-toastify";
@@ -58,6 +62,10 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/shipments" element={<Shipments />} />
             <Route path="/shipments/:id" element={<ShipmentDetail />} />
+            <Route path="/vehicles" element={<Vehicles />} />
+            <Route path="/drivers" element={<Drivers />} />
+            <Route path="/trips" element={<Trips />} />
+            <Route path="/maintenance" element={<Maintenance />} />
             <Route path="/tracking/:vehicleId" element={<TrackingMap />} />
             <Route path="/tracking" element={<TrackingMap />} />
           </Route>

@@ -10,6 +10,9 @@ import {
   ShieldCheck,
   UserCheck,
   ChevronRight,
+  Users,
+  Navigation,
+  Wrench
 } from "lucide-react";
 
 const navItems = [
@@ -26,10 +29,34 @@ const navItems = [
     roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
   },
   {
+    to: "/vehicles",
+    label: "Fleet Vehicles",
+    icon: Truck,
+    roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
+  },
+  {
+    to: "/drivers",
+    label: "Drivers Directory",
+    icon: Users,
+    roles: ["Admin", "FleetManager", "Dispatcher"],
+  },
+  {
+    to: "/trips",
+    label: "Trips & Routes",
+    icon: Navigation,
+    roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
+  },
+  {
     to: "/tracking",
     label: "Live Tracking",
     icon: MapPin,
     roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
+  },
+  {
+    to: "/maintenance",
+    label: "Maintenance & Fuel",
+    icon: Wrench,
+    roles: ["Admin", "FleetManager"],
   },
 ];
 
@@ -82,7 +109,7 @@ const Sidebar = () => {
             <Truck size={18} color="white" />
           </div>
           <div>
-            <p style={{ color: "#0F172A", fontWeight: 800, fontSize: "16px", margin: 0, tracking: "-0.02em" }}>FleetFlow</p>
+            <p style={{ color: "#0F172A", fontWeight: 800, fontSize: "16px", margin: 0, letterSpacing: "-0.02em" }}>FleetFlow</p>
             <p style={{ color: "#0D9488", fontSize: "10px", margin: 0, fontFamily: "monospace", fontWeight: 700 }}>TEAL MODE v2.0</p>
           </div>
         </div>

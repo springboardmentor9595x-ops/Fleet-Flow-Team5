@@ -99,7 +99,8 @@ class ShipmentHistoryOut(BaseModel):
     changed_by_name: Optional[str] = None
     changed_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
 
 
 class ShipmentListResponse(BaseModel):

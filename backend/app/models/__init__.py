@@ -1,7 +1,7 @@
 from app.models.user import User, RoleEnum
 from app.models.driver import Driver
 from app.models.vehicle import Vehicle
-from app.models.shipment import Shipment
+from app.models.shipment import Shipment, ShipmentHistory, ShipmentStatusEnum
 from app.models.trip import Trip
 from app.models.gps_tracking import GPSTracking
 from app.models.maintenance import VehicleMaintenance
@@ -15,6 +15,8 @@ __all__ = [
     "Driver",
     "Vehicle",
     "Shipment",
+    "ShipmentHistory",
+    "ShipmentStatusEnum",
     "Trip",
     "GPSTracking",
     "VehicleMaintenance",

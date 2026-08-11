@@ -146,7 +146,10 @@ def get_history(
     s = crud.get_shipment(db, shipment_id)
     if not s:
         raise HTTPException(status_code=404, detail="Shipment not found.")
-    return crud.get_shipment_history(db, shipment_id)
+    # crud returns list of dicts (with changed_by_name resolved) — validate each explicitly
+    raw = crud.get_shipment_history(db, shipment_id)
+    return [ShipmentHistoryOut.model_validate(item) for item in raw]
+
 
 
 # ── Update ────────────────────────────────────────────────────────────────────
@@ -327,8 +330,64 @@ def optimize_shipment_route(
         })
 
     # 5. Run TSP optimization engine
+    from app.core.route_optimization import haversine_distance_km
+    from datetime import datetime, timedelta
+
     result = optimize_multi_stop_route(origin, stops)
-    return result
+
+    # Calculate original distance
+    original_distance_km = 0.0
+    current_pt = origin
+    for s in stops:
+        original_distance_km += haversine_distance_km(current_pt["lat"], current_pt["lon"], s["lat"], s["lon"])
+        current_pt = s
+    original_distance_km = round(original_distance_km, 2)
+
+    total_distance_km = result["total_distance_km"]
+    distance_saved_km = max(0.0, round(original_distance_km - total_distance_km, 2))
+
+    total_duration_minutes = round((total_distance_km / 45.0) * 60.0, 1)
+    original_duration_minutes = round((original_distance_km / 45.0) * 60.0, 1)
+    time_saved_minutes = max(0.0, round(original_duration_minutes - total_duration_minutes, 1))
+
+    # Est fuel saved (e.g. heavy truck ~ 15L per 100km, so 0.15L per km)
+    fuel_saved_liters = max(0.0, round(distance_saved_km * 0.15, 2))
+
+    # Generate legs sequence for the timeline itinerary
+    legs = []
+    current_pt = origin
+    current_time = datetime.utcnow()
+    for idx, s in enumerate(result["ordered_stops"]):
+        leg_dist = haversine_distance_km(current_pt["lat"], current_pt["lon"], s["lat"], s["lon"])
+        leg_dur = round((leg_dist / 45.0) * 60.0, 1)
+        current_time += timedelta(minutes=leg_dur)
+
+        legs.append({
+            "step": idx + 1,
+            "from_name": current_pt.get("name", "Dispatch Hub"),
+            "to_name": s["name"],
+            "leg_distance_km": leg_dist,
+            "leg_duration_minutes": leg_dur,
+            "estimated_arrival": current_time.isoformat(),
+            "tracking_number": s.get("tracking_number", ""),
+        })
+        current_pt = s
+
+    return {
+        "origin": origin,
+        "ordered_stops": result["ordered_stops"],
+        "original_distance_km": original_distance_km,
+        "total_distance_km": total_distance_km,
+        "distance_saved_km": distance_saved_km,
+        "original_duration_minutes": original_duration_minutes,
+        "total_duration_minutes": total_duration_minutes,
+        "time_saved_minutes": time_saved_minutes,
+        "fuel_saved_liters": fuel_saved_liters,
+        "legs": legs,
+        "stop_count": result["stop_count"],
+        "optimization_algorithm": result["optimization_algorithm"],
+    }
+
 
 
 @router.get("/{shipment_id}/eta")

@@ -5,23 +5,27 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { gpsApi, createTrackingWebSocket } from "../api/gps";
 import shipmentsApi from "../api/shipments";
+import tripsApi from "../api/trips";
 import {
   Truck, MapPin, Navigation, Zap, Wifi, WifiOff, RefreshCw,
-  ArrowLeft, AlertTriangle, CheckCircle2, Compass, Package, ChevronDown,
-  Radio, Signal, SignalHigh, Clock
+  ArrowLeft, AlertTriangle, CheckCircle2, Clock, Package,
+  ChevronDown, Signal, Play, Square, RotateCcw, Route,
+  Fuel, TimerReset,
 } from "lucide-react";
 import { toast } from "react-toastify";
-
 
 const CITY_COORDS = {
   kollam: [8.8932, 76.6141], mumbai: [19.0760, 72.8777], pune: [18.5204, 73.8567],
   delhi: [28.6139, 77.2090], bangalore: [12.9716, 77.5946], chennai: [13.0827, 80.2707],
-  hyderabad: [17.3850, 78.4867], kolkata: [22.5726, 88.3639],
+  hyderabad: [17.3850, 78.4867], kolkata: [22.5726, 88.3639], kochi: [9.9312, 76.2673],
 };
 const WS_MAX_DELAY = 30000;
 const STATUS_COLORS = {
   Created: "#64748B", Assigned: "#0D9488", "In Transit": "#4F46E5",
   Delivered: "#059669", Delayed: "#D97706", Cancelled: "#DC2626",
+};
+const ROUTE_TYPE_COLORS = {
+  fastest: "#4F46E5", shortest: "#0D9488", traffic_avoidance: "#D97706", fuel_efficient: "#059669",
 };
 
 function getCityCoords(name) {
@@ -67,7 +71,6 @@ const MapRecenter = ({ center }) => {
   return null;
 };
 
-/* ── WS Status indicator ─────────────────────────────────────────────────── */
 const WsIndicator = ({ status, attempt }) => {
   const cfg = {
     connected:    { color: "#059669", bg: "rgba(5,150,105,0.1)",   border: "rgba(5,150,105,0.25)",   label: "LIVE",           Icon: Wifi },
@@ -87,7 +90,6 @@ const WsIndicator = ({ status, attempt }) => {
   );
 };
 
-/* ── Multi-vehicle overview card ────────────────────────────────────────── */
 const VehicleCard = ({ shipment, isActive, onClick }) => {
   const sc = STATUS_COLORS[shipment.status] || "#64748B";
   return (
@@ -113,14 +115,11 @@ const VehicleCard = ({ shipment, isActive, onClick }) => {
       <p style={{ fontSize: "11px", color: "#475569", margin: 0, display: "flex", alignItems: "center", gap: "4px" }}>
         <MapPin size={9} /> {shipment.source} → {shipment.destination}
       </p>
-      {shipment.customer_name && (
-        <p style={{ fontSize: "10px", color: "#64748B", margin: "2px 0 0" }}>{shipment.customer_name}</p>
-      )}
     </div>
   );
 };
 
-/* ── Main Component ─────────────────────────────────────────────────────── */
+/* ── Main Component ── */
 const TrackingMap = () => {
   const { vehicleId: urlVehicleId } = useParams();
   const navigate = useNavigate();
@@ -137,6 +136,13 @@ const TrackingMap = () => {
   const [lastUpdated,        setLastUpdated]        = useState(null);
   const [activeShipments,    setActiveShipments]    = useState([]);
   const [etaTelemetry,       setEtaTelemetry]       = useState(null);
+  const [activeTrip,         setActiveTrip]         = useState(null);
+  const [routeOptions,       setRouteOptions]       = useState(null);
+  const [selectedRoute,      setSelectedRoute]      = useState("fastest");
+  const [routeCoords,        setRouteCoords]        = useState(null);
+  const [tripLoading,        setTripLoading]        = useState(false);
+  const [isOffRoute,         setIsOffRoute]         = useState(false);
+  const [recalcNotice,       setRecalcNotice]       = useState(false);
 
   const wsRef      = useRef(null);
   const retryTimer = useRef(null);
@@ -163,7 +169,7 @@ const TrackingMap = () => {
     }).catch(console.error);
   }, [urlVehicleId]);
 
-  /* Load vehicle telemetry */
+  /* Load vehicle telemetry & trips */
   const loadVehicleData = useCallback(async () => {
     if (!activeVehicleId) return;
     try {
@@ -185,12 +191,30 @@ const TrackingMap = () => {
       }
       if (trackData?.length > 0) setTrackHistory(trackData.map(t => [parseFloat(t.latitude), parseFloat(t.longitude)]));
       setActiveShipments(linkedShipments);
+
+      // Load active trip & route for first in-transit shipment
+      const inTransitShipment = linkedShipments.find(s => s.status === "In Transit" || s.status === "Assigned");
+      if (inTransitShipment) {
+        const trips = await tripsApi.list(0, 20).catch(() => []);
+        const tripForShipment = trips.find(t => t.shipment_id === inTransitShipment.shipment_id && t.status !== "Completed");
+        if (tripForShipment) {
+          setActiveTrip(tripForShipment);
+          setSelectedRoute(tripForShipment.planned_route_type || "fastest");
+          // Load route options for trip
+          const opts = await tripsApi.getRouteOptions(tripForShipment.trip_id).catch(() => null);
+          if (opts?.route_options) {
+            setRouteOptions(opts.route_options);
+            const routeData = opts.route_options[tripForShipment.planned_route_type || "fastest"];
+            if (routeData?.coordinates) setRouteCoords(routeData.coordinates);
+          }
+        }
+      }
     } catch (err) { console.error("Failed to load vehicle telemetry", err); }
   }, [activeVehicleId, allShipments, selectedShipmentId]);
 
   useEffect(() => { loadVehicleData(); }, [loadVehicleData]);
 
-  /* ── WebSocket with exponential backoff reconnect ── */
+  /* WebSocket with exponential backoff reconnect */
   const connectWs = useCallback(() => {
     if (!activeVehicleId || !mountedRef.current) return;
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
@@ -213,13 +237,29 @@ const TrackingMap = () => {
         if (data.type === "location_update") {
           const lat = parseFloat(data.latitude), lon = parseFloat(data.longitude);
           setPosition([lat, lon]);
-          if (data.speed   !== undefined) setSpeed(parseFloat(data.speed));
-          if (data.heading !== undefined) setHeading(parseFloat(data.heading));
+          if (data.speed   !== undefined) setSpeed(parseFloat(data.speed) || 0);
+          if (data.heading !== undefined) setHeading(parseFloat(data.heading) || 0);
           if (data.eta_telemetry !== undefined) setEtaTelemetry(data.eta_telemetry);
           setLastUpdated(new Date());
           setTrackHistory((prev) => [...prev, [lat, lon]]);
+
+          // Off-route detection: if route coords available, check deviation
+          if (routeCoords && routeCoords.length > 0) {
+            const distToRoute = Math.min(...routeCoords.map(([rlat, rlon]) => {
+              const dLat = (rlat - lat) * 111000;
+              const dLon = (rlon - lon) * 111000 * Math.cos(lat * Math.PI / 180);
+              return Math.sqrt(dLat * dLat + dLon * dLon);
+            }));
+            if (distToRoute > 500 && !isOffRoute) {
+              setIsOffRoute(true);
+              setRecalcNotice(true);
+              toast.warning("Vehicle deviated from planned route — recalculating...", { icon: "🔄" });
+            } else if (distToRoute <= 500) {
+              setIsOffRoute(false);
+            }
+          }
         } else if (data.type === "geofence_event") {
-          toast.info(`🔔 Geofence Alert: Vehicle arrived at ${data.destination || "destination"}!`);
+          toast.info(`Geofence: Vehicle arrived at ${data.destination || "destination"}!`, { icon: "📍" });
         }
       } catch (err) { console.error("WS parse error", err); }
     };
@@ -239,7 +279,7 @@ const TrackingMap = () => {
       setWsStatus("disconnected");
       scheduleReconnect();
     };
-  }, [activeVehicleId]);
+  }, [activeVehicleId, routeCoords, isOffRoute]);
 
   useEffect(() => {
     if (!activeVehicleId) return;
@@ -251,12 +291,73 @@ const TrackingMap = () => {
     };
   }, [activeVehicleId, connectWs]);
 
-  /* ── Handlers ── */
+  /* Handlers */
   const handleShipmentSelect = (shipmentId) => {
     setSelectedShipmentId(shipmentId);
+    setActiveTrip(null);
+    setRouteOptions(null);
+    setRouteCoords(null);
+    setTrackHistory([]);
     const target = allShipments.find((s) => s.shipment_id === shipmentId);
     if (target?.vehicle_id) setActiveVehicleId(target.vehicle_id);
     else toast.info("This shipment has no vehicle assigned yet.");
+  };
+
+  const handleRouteChange = (type) => {
+    setSelectedRoute(type);
+    if (routeOptions?.[type]?.coordinates) setRouteCoords(routeOptions[type].coordinates);
+  };
+
+  const handleStartTrip = async () => {
+    if (!activeTrip) return;
+    setTripLoading(true);
+    try {
+      const updated = await tripsApi.start(activeTrip.trip_id);
+      setActiveTrip(updated);
+      toast.success("Trip started! Shipment is now In Transit.");
+      loadVehicleData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to start trip.");
+    } finally {
+      setTripLoading(false);
+    }
+  };
+
+  const handleEndTrip = async () => {
+    if (!activeTrip) return;
+    if (!window.confirm("End this trip? The shipment will be marked as Delivered.")) return;
+    setTripLoading(true);
+    try {
+      await tripsApi.end(activeTrip.trip_id, null);
+      toast.success("Trip completed! Shipment marked as Delivered.");
+      setActiveTrip(null);
+      setRouteCoords(null);
+      setRouteOptions(null);
+      loadVehicleData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to end trip.");
+    } finally {
+      setTripLoading(false);
+    }
+  };
+
+  const handleRecalculate = async () => {
+    if (!activeTrip || !position) return;
+    setTripLoading(true);
+    setRecalcNotice(false);
+    try {
+      const updated = await tripsApi.recalculate(activeTrip.trip_id, position[0], position[1]);
+      setActiveTrip(updated);
+      if (updated.route_geometry) {
+        try { setRouteCoords(JSON.parse(updated.route_geometry)); } catch {}
+      }
+      setIsOffRoute(false);
+      toast.success("Route recalculated from current position!");
+    } catch (err) {
+      toast.error("Recalculation failed. Using last known route.");
+    } finally {
+      setTripLoading(false);
+    }
   };
 
   const simulatePing = () => {
@@ -276,7 +377,7 @@ const TrackingMap = () => {
     } else {
       setPosition([newLat, newLon]); setSpeed(ping.speed); setHeading(ping.heading); setLastUpdated(new Date());
     }
-    toast.success("📡 GPS ping sent!");
+    toast.success("GPS ping sent!", { icon: "📡" });
   };
 
   const currentShipment = allShipments.find((s) => s.shipment_id === selectedShipmentId);
@@ -284,9 +385,10 @@ const TrackingMap = () => {
   const destCoords      = currentShipment ? getCityCoords(currentShipment.destination) : null;
   const defaultCenter   = position || sourceCoords || [19.0760, 72.8777];
   const shipsWithVehicle = allShipments.filter((s) => s.vehicle_id);
+  const activeRouteColor = ROUTE_TYPE_COLORS[selectedRoute] || "#0D9488";
 
   return (
-    <div style={{ flex: 1, minHeight: "100vh", background: "#F8FAFC", display: "flex", flexDirection: "column", gap: 0, color: "#0F172A" }}>
+    <div style={{ flex: 1, minHeight: "100vh", background: "#F8FAFC", display: "flex", flexDirection: "column", color: "#0F172A" }}>
 
       {/* ── Top Header Bar ── */}
       <div style={{ padding: "20px 28px 0", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
@@ -328,9 +430,27 @@ const TrackingMap = () => {
         </div>
       </div>
 
+      {/* ── Deviation / Recalc Notice Banner ── */}
+      {recalcNotice && (
+        <div style={{ margin: "12px 28px 0", padding: "12px 20px", borderRadius: "12px", background: "rgba(217,119,6,0.08)", border: "1px solid rgba(217,119,6,0.3)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <AlertTriangle size={16} color="#D97706" />
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "#92400E" }}>Vehicle off-route detected — route is being recalculated.</span>
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={handleRecalculate} disabled={tripLoading} style={{ padding: "6px 14px", borderRadius: "8px", background: "#D97706", border: "none", color: "white", cursor: "pointer", fontSize: "12px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}>
+              <RotateCcw size={12} /> Recalculate
+            </button>
+            <button onClick={() => setRecalcNotice(false)} style={{ padding: "6px 10px", borderRadius: "8px", background: "transparent", border: "1px solid rgba(217,119,6,0.4)", color: "#D97706", cursor: "pointer", fontSize: "11px" }}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Active Shipment Banner ── */}
       {currentShipment && (
-        <div style={{ margin: "14px 28px 0", padding: "14px 20px", borderRadius: "12px", background: "#FFFFFF", border: "1px solid #E2E8F0", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ margin: "12px 28px 0", padding: "14px 20px", borderRadius: "12px", background: "#FFFFFF", border: "1px solid #E2E8F0", boxShadow: "0 2px 8px rgba(15,23,42,0.04)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <Package size={18} color="#0D9488" />
             <div>
@@ -350,9 +470,9 @@ const TrackingMap = () => {
       )}
 
       {/* ── Map + Sidebars ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 240px", gap: "16px", padding: "16px 28px 28px", flex: 1 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 260px", gap: "16px", padding: "16px 28px 28px", flex: 1 }}>
 
-        {/* ── Left: Multi-vehicle overview panel ── */}
+        {/* Left: Multi-vehicle panel + Route options */}
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", overflowY: "auto" }}>
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "16px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
             <h3 style={{ fontSize: "10px", fontWeight: 800, color: "#475569", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -372,6 +492,48 @@ const TrackingMap = () => {
               />
             ))}
           </div>
+
+          {/* Route Options Selector */}
+          {routeOptions && (
+            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "14px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+              <h3 style={{ fontSize: "10px", fontWeight: 800, color: "#475569", margin: "0 0 10px", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Route size={12} /> Route Options
+              </h3>
+              {[
+                { key: "fastest", label: "Fastest", icon: Zap },
+                { key: "shortest", label: "Shortest", icon: Route },
+                { key: "traffic_avoidance", label: "Traffic Free", icon: Navigation },
+                { key: "fuel_efficient", label: "Fuel Efficient", icon: Fuel },
+              ].map(({ key, label, icon: Icon }) => {
+                const info = routeOptions[key];
+                const isActive = selectedRoute === key;
+                const c = ROUTE_TYPE_COLORS[key];
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handleRouteChange(key)}
+                    style={{
+                      width: "100%", textAlign: "left", padding: "9px 11px", borderRadius: "10px", cursor: "pointer",
+                      background: isActive ? `${c}10` : "transparent",
+                      border: isActive ? `1.5px solid ${c}` : "1px solid #E2E8F0",
+                      marginBottom: "6px", transition: "all 0.15s",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
+                      <Icon size={11} color={isActive ? c : "#94A3B8"} />
+                      <span style={{ fontSize: "11px", fontWeight: 800, color: isActive ? c : "#475569" }}>{label}</span>
+                      {isActive && <CheckCircle2 size={10} color={c} style={{ marginLeft: "auto" }} />}
+                    </div>
+                    {info && (
+                      <p style={{ fontSize: "10px", color: "#64748B", margin: 0 }}>
+                        {info.distance_km} km · {info.duration_mins} min
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* WS reconnect info */}
           {wsStatus !== "connected" && (
@@ -419,18 +581,91 @@ const TrackingMap = () => {
                   </Popup>
                 </Marker>
               )}
-              {sourceCoords && destCoords && (
+
+              {/* OSRM planned route overlay */}
+              {routeCoords && routeCoords.length > 1 && (
+                <Polyline positions={routeCoords} color={activeRouteColor} weight={4} opacity={0.75} />
+              )}
+
+              {/* Fallback straight-line route if no OSRM coords */}
+              {!routeCoords && sourceCoords && destCoords && (
                 <Polyline positions={[sourceCoords, position || sourceCoords, destCoords]} color="#0D9488" weight={3} opacity={0.6} dashArray="6, 10" />
               )}
+
+              {/* Vehicle GPS track history trail */}
               {trackHistory.length > 1 && (
                 <Polyline positions={trackHistory} color="#4F46E5" weight={5} opacity={0.85} />
               )}
             </MapContainer>
           )}
+
+          {/* Trip Controls overlay */}
+          {activeTrip && (
+            <div style={{ position: "absolute", bottom: "16px", left: "50%", transform: "translateX(-50%)", zIndex: 1000, display: "flex", gap: "10px" }}>
+              {activeTrip.status === "Scheduled" && (
+                <button
+                  onClick={handleStartTrip}
+                  disabled={tripLoading}
+                  style={{ padding: "10px 20px", borderRadius: "12px", background: "linear-gradient(135deg, #0D9488, #0891B2)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 800, boxShadow: "0 4px 20px rgba(13,148,136,0.5)" }}
+                >
+                  <Play size={14} /> Start Trip
+                </button>
+              )}
+              {activeTrip.status === "In Transit" && (
+                <>
+                  <button
+                    onClick={handleRecalculate}
+                    disabled={tripLoading}
+                    style={{ padding: "10px 16px", borderRadius: "12px", background: "rgba(217,119,6,0.9)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: "7px", fontSize: "12px", fontWeight: 700, boxShadow: "0 4px 14px rgba(217,119,6,0.4)" }}
+                  >
+                    <RotateCcw size={13} /> Recalculate
+                  </button>
+                  <button
+                    onClick={handleEndTrip}
+                    disabled={tripLoading}
+                    style={{ padding: "10px 20px", borderRadius: "12px", background: "linear-gradient(135deg, #059669, #0D9488)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 800, boxShadow: "0 4px 20px rgba(5,150,105,0.5)" }}
+                  >
+                    <Square size={14} /> End Trip
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Right: Telemetry Sidebar ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+
+          {/* Trip Status Card */}
+          {activeTrip && (
+            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "16px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
+              <h3 style={{ fontSize: "10px", fontWeight: 800, color: "#475569", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Truck size={12} /> Active Trip
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "11px", color: "#64748B" }}>Status</span>
+                  <span style={{ fontSize: "11px", fontWeight: 800, color: activeTrip.status === "In Transit" ? "#4F46E5" : "#0D9488" }}>{activeTrip.status}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "11px", color: "#64748B" }}>Route</span>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: activeRouteColor }}>{(activeTrip.planned_route_type || "fastest").replace("_", " ")}</span>
+                </div>
+                {activeTrip.distance && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "11px", color: "#64748B" }}>Distance</span>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#0F172A" }}>{parseFloat(activeTrip.distance).toFixed(1)} km</span>
+                  </div>
+                )}
+                {activeTrip.estimated_duration && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "11px", color: "#64748B" }}>Est. Duration</span>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#0F172A" }}>{parseFloat(activeTrip.estimated_duration).toFixed(0)} min</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Live Telemetry card */}
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "14px", padding: "18px", boxShadow: "0 2px 8px rgba(15,23,42,0.04)" }}>
@@ -458,14 +693,29 @@ const TrackingMap = () => {
               </span>
             </div>
 
+            {/* ETA Panel */}
             {etaTelemetry && (
-              <div style={{ background: etaTelemetry.is_delayed ? "#FEF2F2" : "#F0FDF4", padding: "10px 12px", borderRadius: "10px", border: `1px solid ${etaTelemetry.is_delayed ? "#FECACA" : "#BBF7D0"}`, marginBottom: "10px" }}>
-                <span style={{ fontSize: "9px", color: etaTelemetry.is_delayed ? "#991B1B" : "#166534", fontWeight: 800, display: "block", textTransform: "uppercase", marginBottom: "3px" }}>Dynamic ETA</span>
-                <span style={{ fontSize: "12px", fontWeight: 700, color: etaTelemetry.is_delayed ? "#7F1D1D" : "#14532D", fontFamily: "monospace", display: "block" }}>
-                  {etaTelemetry.distance_remaining_km.toFixed(1)} km left
-                </span>
-                <div style={{ fontSize: "10px", fontWeight: 600, color: etaTelemetry.is_delayed ? "#991B1B" : "#166534", marginTop: "4px" }}>
-                  Status: {etaTelemetry.is_delayed ? <strong>Delayed</strong> : <strong>On Time</strong>}
+              <div style={{ background: etaTelemetry.is_delayed ? "#FEF2F2" : "#F0FDF4", padding: "12px", borderRadius: "10px", border: `1px solid ${etaTelemetry.is_delayed ? "#FECACA" : "#BBF7D0"}`, marginBottom: "10px" }}>
+                <span style={{ fontSize: "9px", color: etaTelemetry.is_delayed ? "#991B1B" : "#166534", fontWeight: 800, display: "block", textTransform: "uppercase", marginBottom: "4px" }}>Dynamic ETA</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "10px", color: "#64748B" }}>Remaining</span>
+                    <span style={{ fontSize: "11px", fontWeight: 800, color: etaTelemetry.is_delayed ? "#7F1D1D" : "#14532D" }}>
+                      {(etaTelemetry.remaining_distance_km || 0).toFixed(1)} km
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "10px", color: "#64748B" }}>ETA</span>
+                    <span style={{ fontSize: "10px", fontWeight: 700, color: etaTelemetry.is_delayed ? "#7F1D1D" : "#14532D" }}>
+                      {etaTelemetry.remaining_duration_mins ? `${Math.round(etaTelemetry.remaining_duration_mins)} min` : "Calculating..."}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "10px", color: "#64748B" }}>Status</span>
+                    <span style={{ fontSize: "10px", fontWeight: 800, color: etaTelemetry.is_delayed ? "#DC2626" : "#059669" }}>
+                      {etaTelemetry.is_delayed ? "DELAYED" : "ON TIME"}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}

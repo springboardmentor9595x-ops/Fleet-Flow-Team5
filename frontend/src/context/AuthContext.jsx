@@ -40,32 +40,26 @@ export const AuthProvider = ({ children }) => {
     });
 
     const accessToken = res.data.access_token;
-    const userData = res.data.user;
-
     localStorage.setItem("token", accessToken);
     setToken(accessToken);
+
+    let userData = res.data.user;
+    if (!userData) {
+      const meRes = await api.get("/auth/me", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      userData = meRes.data;
+    }
+
     setUser(userData);
     return userData;
   };
 
   // Strict Admin Portal login
   const adminLogin = async (email, password) => {
-    const formData = new URLSearchParams();
-    formData.append("username", email);
-    formData.append("password", password);
-
-    const res = await api.post("/auth/admin/login", formData, {
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    });
-
-    const accessToken = res.data.access_token;
-    const userData = res.data.user;
-
-    localStorage.setItem("token", accessToken);
-    setToken(accessToken);
-    setUser(userData);
-    return userData;
+    return await login(email, password);
   };
+
 
   // Signup for different roles
   const signup = async (userData) => {

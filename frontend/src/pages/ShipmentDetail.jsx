@@ -1,13 +1,14 @@
-﻿import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import shipmentsApi from "../api/shipments";
 import fleetApi from "../api/fleet";
 import DeliveryProgressStepper from "../components/DeliveryProgressStepper";
+import TripScheduleModal from "../components/TripScheduleModal";
 import {
   ArrowLeft, Package, MapPin, Truck, User, Calendar,
   CheckCircle2, AlertTriangle, FileText, Phone, Weight, History,
-  ChevronRight, Activity
+  ChevronRight, Activity, Route
 } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -42,10 +43,13 @@ const InfoRow = ({ label, icon: Icon, iconColor, children }) => (
   </div>
 );
 
+const MANAGEMENT_ROLES = ["Admin", "FleetManager", "Dispatcher"];
+
 const ShipmentDetail = () => {
   const { id }    = useParams();
   const navigate  = useNavigate();
   const { user }  = useAuth();
+  const canManage = MANAGEMENT_ROLES.includes(user?.role);
 
   const [shipment,    setShipment]    = useState(null);
   const [history,     setHistory]     = useState([]);
@@ -54,6 +58,7 @@ const ShipmentDetail = () => {
   const [loading,     setLoading]     = useState(true);
   const [updating,    setUpdating]    = useState(false);
   const [statusNote,  setStatusNote]  = useState("");
+  const [showTripModal, setShowTripModal] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -162,14 +167,24 @@ const ShipmentDetail = () => {
           </div>
         </div>
 
-        {shipment.vehicle_id && (
-          <button
-            onClick={() => navigate(`/tracking/${shipment.vehicle_id}`)}
-            style={{ padding: "10px 18px", borderRadius: "10px", background: "linear-gradient(135deg, #0D9488, #0891B2)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, boxShadow: "0 4px 14px rgba(13,148,136,0.3)" }}
-          >
-            <MapPin size={15} /> Live GPS Map
-          </button>
-        )}
+        <div style={{ display: "flex", gap: "10px" }}>
+          {canManage && !(["Delivered", "Cancelled"].includes(shipment?.status)) && (
+            <button
+              onClick={() => setShowTripModal(true)}
+              style={{ padding: "10px 18px", borderRadius: "10px", background: "linear-gradient(135deg, #4F46E5, #7C3AED)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, boxShadow: "0 4px 14px rgba(79,70,229,0.3)" }}
+            >
+              <Route size={15} /> Schedule Trip
+            </button>
+          )}
+          {shipment.vehicle_id && (
+            <button
+              onClick={() => navigate(`/tracking/${shipment.vehicle_id}`)}
+              style={{ padding: "10px 18px", borderRadius: "10px", background: "linear-gradient(135deg, #0D9488, #0891B2)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 700, boxShadow: "0 4px 14px rgba(13,148,136,0.3)" }}
+            >
+              <MapPin size={15} /> Live GPS Map
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Main Grid ── */}
@@ -244,7 +259,7 @@ const ShipmentDetail = () => {
                       <p style={{ fontSize: "10px", fontWeight: 800, color: "#64748B", margin: "0 0 2px", textTransform: "uppercase" }}>Driver</p>
                       {driverInfo ? (
                         <>
-                          <p style={{ fontSize: "13px", fontWeight: 800, color: "#0F172A", margin: 0 }}>{driverInfo.full_name || "Unnamed Driver"}</p>
+                          <p style={{ fontSize: "13px", fontWeight: 800, color: "#0F172A", margin: 0 }}>{driverInfo.driver_name || "Unnamed Driver"}</p>
                           <p style={{ fontSize: "11px", color: "#64748B", margin: 0 }}>
                             {driverInfo.license_number ? `Lic: ${driverInfo.license_number}` : ""}{driverInfo.status ? ` · ${driverInfo.status}` : ""}
                           </p>
@@ -340,6 +355,15 @@ const ShipmentDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* Trip Schedule Modal */}
+      {showTripModal && shipment && (
+        <TripScheduleModal
+          shipment={shipment}
+          onClose={() => setShowTripModal(false)}
+          onSuccess={() => { setShowTripModal(false); fetchData(); }}
+        />
+      )}
     </div>
   );
 };

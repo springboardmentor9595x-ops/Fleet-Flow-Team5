@@ -345,7 +345,7 @@ const ShipmentForm = ({ onClose, onSuccess, editData = null }) => {
                 <option value="">— No driver assigned —</option>
                 {drivers.map((d) => (
                   <option key={d.driver_id} value={d.driver_id}>
-                    {d.full_name || "Unnamed Driver"}
+                    {d.driver_name || "Unnamed Driver"}
                     {d.license_number ? ` · ${d.license_number}` : ""}
                     {d.status ? ` (${d.status})` : ""}
                   </option>

@@ -84,7 +84,7 @@ const Login = () => {
 
     try {
       const loggedInUser = await login(email, password);
-      toast.success(`Welcome back, ${loggedInUser.full_name || "User"}!`);
+      toast.success(`Welcome back, ${loggedInUser?.full_name || "User"}!`);
       navigate("/dashboard");
     } catch (err) {
       console.error(err);
