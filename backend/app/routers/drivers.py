@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.database import get_db
 from app.core.deps import get_current_user
-from app.models.user import User
+from app.models.user import User, RoleEnum
 from app.models.driver import Driver
 
 router = APIRouter()
@@ -51,8 +51,12 @@ def list_drivers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List all registered drivers with full name resolution."""
-    drivers = db.query(Driver).order_by(Driver.created_at.desc()).offset(skip).limit(limit).all()
+    """List drivers. Admin, FleetManager, Dispatcher see all; Driver sees only own profile."""
+    query = db.query(Driver)
+    if current_user.role == RoleEnum.Driver:
+        query = query.filter(Driver.user_id == current_user.user_id)
+        
+    drivers = query.order_by(Driver.created_at.desc()).offset(skip).limit(limit).all()
     result = []
     for d in drivers:
         name = "Driver"
@@ -80,7 +84,13 @@ def create_driver(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Register a new driver record."""
+    """Register a new driver record. Admin & FleetManager only."""
+    if current_user.role not in (RoleEnum.Admin, RoleEnum.FleetManager):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Admin or FleetManager can register drivers.",
+        )
+
     existing = db.query(Driver).filter(Driver.license_number == payload.license_number).first()
     if existing:
         raise HTTPException(status_code=400, detail="License number already registered.")
@@ -107,6 +117,78 @@ def create_driver(
     )
 
 
+class DriverStatusUpdate(BaseModel):
+    status: str  # "Active" | "Inactive"
+
+
+@router.get("/me", response_model=DriverOut)
+def get_my_driver_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get currently logged-in driver's profile. Auto-creates driver record if missing."""
+    d = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+    if not d:
+        # Auto-create driver record for driver role user if missing
+        d = Driver(
+            user_id=current_user.user_id,
+            license_number=f"CDL-{str(current_user.user_id)[:8].upper()}",
+            status="Active",
+            experience_years=1,
+            address="Main Depot",
+        )
+        db.add(d)
+        db.commit()
+        db.refresh(d)
+
+    return DriverOut(
+        driver_id=d.driver_id,
+        user_id=d.user_id,
+        license_number=d.license_number,
+        experience_years=d.experience_years,
+        address=d.address,
+        status=d.status,
+        driver_name=current_user.full_name,
+    )
+
+
+@router.patch("/me/status", response_model=DriverOut)
+def update_my_status(
+    payload: DriverStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Driver updates their own Active/Inactive status."""
+    if payload.status not in ("Active", "Inactive"):
+        raise HTTPException(status_code=400, detail="Status must be 'Active' or 'Inactive'.")
+
+    d = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+    if not d:
+        d = Driver(
+            user_id=current_user.user_id,
+            license_number=f"CDL-{str(current_user.user_id)[:8].upper()}",
+            status=payload.status,
+            experience_years=1,
+            address="Main Depot",
+        )
+        db.add(d)
+    else:
+        d.status = payload.status
+
+    db.commit()
+    db.refresh(d)
+
+    return DriverOut(
+        driver_id=d.driver_id,
+        user_id=d.user_id,
+        license_number=d.license_number,
+        experience_years=d.experience_years,
+        address=d.address,
+        status=d.status,
+        driver_name=current_user.full_name,
+    )
+
+
 @router.get("/{driver_id}", response_model=DriverOut)
 def get_driver(
     driver_id: UUID,
@@ -116,6 +198,10 @@ def get_driver(
     d = db.query(Driver).filter(Driver.driver_id == driver_id).first()
     if not d:
         raise HTTPException(status_code=404, detail="Driver not found.")
+    
+    if current_user.role == RoleEnum.Driver and d.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="You can only view your own driver record.")
+
     name = "Driver"
     if d.user_id:
         u = db.query(User).filter(User.user_id == d.user_id).first()
@@ -140,11 +226,26 @@ def update_driver(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Update driver profile or vehicle assignment. Admin & FleetManager only (or Driver updating own profile)."""
     d = db.query(Driver).filter(Driver.driver_id == driver_id).first()
     if not d:
         raise HTTPException(status_code=404, detail="Driver not found.")
 
+    if current_user.role not in (RoleEnum.Admin, RoleEnum.FleetManager):
+        if current_user.role == RoleEnum.Driver and d.user_id == current_user.user_id:
+            # Drivers can update their own address/license, but cannot change user_id assignment
+            pass
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only Admin or FleetManager can update driver records.",
+            )
+
     data = payload.model_dump(exclude_unset=True)
+    if current_user.role == RoleEnum.Driver:
+        data.pop("user_id", None)
+        data.pop("status", None)
+
     for field, val in data.items():
         setattr(d, field, val)
 
@@ -174,6 +275,13 @@ def delete_driver(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Delete a driver record. Admin only."""
+    if current_user.role != RoleEnum.Admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Admin can delete driver records.",
+        )
+
     d = db.query(Driver).filter(Driver.driver_id == driver_id).first()
     if not d:
         raise HTTPException(status_code=404, detail="Driver not found.")
@@ -181,3 +289,4 @@ def delete_driver(
     db.delete(d)
     db.commit()
     return None
+

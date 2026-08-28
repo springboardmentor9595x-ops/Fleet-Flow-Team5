@@ -15,4 +15,5 @@ class VehicleMaintenance(Base):
     cost = Column(Numeric(10, 2))
     remarks = Column(Text, nullable=True)
     status = Column(String(20), default="Scheduled")
+    last_notified_date = Column(Date, nullable=True)
 

@@ -308,13 +308,15 @@ const Vehicles = () => {
                             >
                               <Edit2 size={14} />
                             </button>
-                            <button
-                              onClick={() => handleDelete(v)}
-                              title="Delete Vehicle"
-                              style={{ padding: "6px", borderRadius: "6px", background: "rgba(220,38,38,0.1)", border: "none", color: "#DC2626", cursor: "pointer" }}
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            {user?.role === "Admin" && (
+                              <button
+                                onClick={() => handleDelete(v)}
+                                title="Delete Vehicle (Admin Only)"
+                                style={{ padding: "6px", borderRadius: "6px", background: "rgba(220,38,38,0.1)", border: "none", color: "#DC2626", cursor: "pointer" }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>

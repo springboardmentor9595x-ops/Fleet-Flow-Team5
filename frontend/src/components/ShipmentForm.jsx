@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+
 import {
   X, Package, Truck, User, Calendar, Weight, MapPin, FileText,
   Phone, AlertCircle, ChevronDown, Loader, Sparkles
@@ -345,7 +346,7 @@ const ShipmentForm = ({ onClose, onSuccess, editData = null }) => {
                 <option value="">— No driver assigned —</option>
                 {drivers.map((d) => (
                   <option key={d.driver_id} value={d.driver_id}>
-                    {d.driver_name || "Unnamed Driver"}
+                    {d.full_name || "Unnamed Driver"}
                     {d.license_number ? ` · ${d.license_number}` : ""}
                     {d.status ? ` (${d.status})` : ""}
                   </option>

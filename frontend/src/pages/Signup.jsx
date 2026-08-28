@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import {
@@ -94,12 +94,14 @@ const getStrengthDetails = (criteria) => {
 
 const Signup = () => {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { signup, verifyOtp, resendOtp } = useAuth();
 
+  const [step, setStep] = useState(searchParams.get("otp") ? "otp" : "form"); // "form" | "otp"
   const [role, setRole] = useState("Driver");
   const [formData, setFormData] = useState({
     full_name: "",
-    email: "",
+    email: searchParams.get("email") || "",
     password: "",
     admin_secret_key: "",
     license_number: "",
@@ -112,7 +114,18 @@ const Signup = () => {
   const [showAdminKey, setShowAdminKey]       = useState(false);
   const [loading, setLoading]                 = useState(false);
   const [error, setError]                     = useState("");
-  const [successUser, setSuccessUser]         = useState(null);
+  const [otp, setOtp]                         = useState("");
+  const [verifyingOtp, setVerifyingOtp]       = useState(false);
+  const [resendCooldown, setResendCooldown]   = useState(0);
+  const [resendingOtp, setResendingOtp]       = useState(false);
+
+  useEffect(() => {
+    let timer;
+    if (resendCooldown > 0) {
+      timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   const roles = [
     { id: "Driver", title: "Vehicle Driver", icon: UserCheck, activeBg: "role-card--green" },
@@ -159,9 +172,10 @@ const Signup = () => {
         license_number: role === "Driver" ? formData.license_number : null,
         hub_location: role === "FleetManager" || role === "Dispatcher" ? formData.hub_location : null,
       };
-      const newUser = await signup(payload);
-      setSuccessUser(newUser);
-      toast.success("Account created successfully! Verification email dispatched to your inbox.");
+      await signup(payload);
+      setStep("otp");
+      setResendCooldown(60);
+      toast.success("Account registered! A 6-digit OTP has been sent to your email.");
     } catch (err) {
       console.error(err);
       const errMsg = err.response?.data?.detail || "Signup failed. Please check form details.";
@@ -169,6 +183,48 @@ const Signup = () => {
       toast.error(errMsg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otp || otp.trim().length !== 6) {
+      toast.error("Please enter a valid 6-digit OTP code.");
+      return;
+    }
+    setVerifyingOtp(true);
+    setError("");
+    try {
+      const authUser = await verifyOtp(formData.email, otp.trim());
+      toast.success(`🎉 Verification successful! Welcome to FleetFlow, ${authUser?.full_name || "User"}!`);
+      navigate("/dashboard");
+    } catch (err) {
+      console.error(err);
+      const errMsg = err.response?.data?.detail || "Invalid or expired OTP code.";
+      setError(errMsg);
+      toast.error(errMsg);
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || resendingOtp) return;
+    if (!formData.email) {
+      toast.warning("Please specify an email address.");
+      return;
+    }
+    setResendingOtp(true);
+    setError("");
+    try {
+      const res = await resendOtp(formData.email);
+      toast.success(res.message || `Fresh OTP sent to ${formData.email}`);
+      setResendCooldown(60);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || "Failed to resend OTP.");
+    } finally {
+      setResendingOtp(false);
     }
   };
 
@@ -192,38 +248,90 @@ const Signup = () => {
           </div>
           <span className="auth-brand">FleetFlow</span>
         </div>
-        <p className="auth-subtitle">Create Account & Role Profile</p>
+        <p className="auth-subtitle">
+          {step === "otp" ? "Email OTP Verification" : "Create Account & Role Profile"}
+        </p>
 
         <div className="auth-panel">
-          {successUser ? (
-            <div className="space-y-6 text-center py-4">
-              <div className="success-icon-wrap">
-                <CheckCircle2 className="w-10 h-10 text-emerald-400" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">Registration Successful!</h3>
-                <p className="text-sm text-slate-300 mt-1">
-                  Account created for{" "}
-                  <span className="text-sky-400 font-semibold">{successUser.full_name}</span> as{" "}
-                  <span className="text-emerald-400 font-semibold">[{successUser.role}]</span>.
+          {step === "otp" ? (
+            <div className="space-y-6 py-2">
+              <div className="text-center">
+                <div className="success-icon-wrap" style={{ background: "rgba(13, 148, 136, 0.15)", border: "1px solid rgba(13, 148, 136, 0.3)" }}>
+                  <KeyRound className="w-8 h-8 text-teal-400" />
+                </div>
+                <h3 className="text-xl font-bold text-white mt-3">Verify Your Email</h3>
+                <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto">
+                  We sent a 6-digit OTP code to <strong className="text-sky-400">{formData.email}</strong>. Enter the OTP code below to verify your account and sign in.
                 </p>
-                <div className="mt-4 p-4 rounded-xl bg-slate-900/90 border border-sky-500/30 text-left space-y-2">
-                  <div className="flex items-center gap-2 text-sky-400 font-semibold text-xs">
-                    <Mail className="w-4 h-4" />
-                    <span>Verification Mail Sent</span>
+              </div>
+
+              {error && (
+                <div className="auth-error">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div className="auth-field">
+                  <label className="auth-label text-center block mb-2">6-Digit Verification Code</label>
+                  <div className="flex justify-center">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ""))}
+                      placeholder="••••••"
+                      autoFocus
+                      required
+                      className="auth-input text-center text-2xl font-mono font-bold text-white bg-slate-900/90 border-slate-700 focus:border-teal-500 rounded-xl"
+                      style={{ maxWidth: "260px", letterSpacing: "10px", height: "54px" }}
+                    />
                   </div>
-                  <p className="text-xs text-slate-300">
-                    We sent a verification link to <strong className="text-white">{successUser.email}</strong>. Please check your inbox and click the verification link before signing in.
+                  <p className="text-[11px] text-slate-400 text-center mt-2">
+                    Code expires in 10 minutes. Please check your inbox / spam folder.
                   </p>
                 </div>
+
+                <button
+                  type="submit"
+                  disabled={verifyingOtp || otp.length < 6}
+                  className="auth-submit auth-submit--blue"
+                  style={{ opacity: (verifyingOtp || otp.length < 6) ? 0.7 : 1 }}
+                >
+                  {verifyingOtp ? (
+                    <div className="auth-spinner" />
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4" />
+                      <span>Verify OTP & Sign In</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setStep("form")}
+                  className="text-slate-400 hover:text-slate-200 transition font-medium"
+                >
+                  ← Edit Details
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={resendCooldown > 0 || resendingOtp}
+                  className="text-sky-400 hover:text-sky-300 font-semibold disabled:text-slate-500 disabled:cursor-not-allowed transition"
+                >
+                  {resendingOtp
+                    ? "Sending..."
+                    : resendCooldown > 0
+                    ? `Resend OTP (${resendCooldown}s)`
+                    : "Resend OTP"}
+                </button>
               </div>
-              <button
-                onClick={() => navigate("/login")}
-                className="auth-submit auth-submit--blue"
-              >
-                <span>Proceed to Sign In</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
             </div>
           ) : (
             <form className="space-y-4" onSubmit={handleSubmit}>

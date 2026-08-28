@@ -15,9 +15,119 @@ import {
 import { toast } from "react-toastify";
 
 const CITY_COORDS = {
-  kollam: [8.8932, 76.6141], mumbai: [19.0760, 72.8777], pune: [18.5204, 73.8567],
-  delhi: [28.6139, 77.2090], bangalore: [12.9716, 77.5946], chennai: [13.0827, 80.2707],
-  hyderabad: [17.3850, 78.4867], kolkata: [22.5726, 88.3639], kochi: [9.9312, 76.2673],
+  // South India
+  kollam: [8.8932, 76.6141],
+  trivandrum: [8.5241, 76.9366],
+  thiruvananthapuram: [8.5241, 76.9366],
+  kochi: [9.9312, 76.2673],
+  cochin: [9.9312, 76.2673],
+  calicut: [11.2588, 75.7804],
+  kozhikode: [11.2588, 75.7804],
+  thrissur: [10.5276, 76.2144],
+  kannur: [11.8745, 75.3704],
+  alappuzha: [9.4981, 76.3388],
+  palakkad: [10.7867, 76.6548],
+  chennai: [13.0827, 80.2707],
+  madras: [13.0827, 80.2707],
+  coimbatore: [11.0168, 76.9558],
+  madurai: [9.9252, 78.1198],
+  trichy: [10.7905, 78.7047],
+  tiruchirappalli: [10.7905, 78.7047],
+  salem: [11.6643, 78.1460],
+  tirunelveli: [8.7139, 77.7567],
+  bangalore: [12.9716, 77.5946],
+  bengaluru: [12.9716, 77.5946],
+  mysore: [12.2958, 76.6394],
+  mysuru: [12.2958, 76.6394],
+  mangalore: [12.9141, 74.8560],
+  mangaluru: [12.9141, 74.8560],
+  hubli: [15.3647, 75.1240],
+  hyderabad: [17.3850, 78.4867],
+  secunderabad: [17.4399, 78.4983],
+  visakhapatnam: [17.6868, 83.2185],
+  vizag: [17.6868, 83.2185],
+  vijayawada: [16.5062, 80.6480],
+
+  // West & Central India
+  mumbai: [19.0760, 72.8777],
+  bombay: [19.0760, 72.8777],
+  pune: [18.5204, 73.8567],
+  nagpur: [21.1458, 79.0882],
+  nashik: [19.9975, 73.7898],
+  aurangabad: [19.8762, 75.3433],
+  ahmedabad: [23.0225, 72.5714],
+  surat: [21.1702, 72.8311],
+  vadodara: [22.3072, 73.1812],
+  rajkot: [22.3039, 70.8022],
+  goa: [15.2993, 74.1240],
+  panaji: [15.4909, 73.8278],
+  indore: [22.7196, 75.8577],
+  bhopal: [23.2599, 77.4126],
+  jabalpur: [23.1815, 79.9864],
+  raipur: [21.2514, 81.6296],
+
+  // North India
+  delhi: [28.6139, 77.2090],
+  "new delhi": [28.6139, 77.2090],
+  noida: [28.5355, 77.3910],
+  gurgaon: [28.4595, 77.0266],
+  gurugram: [28.4595, 77.0266],
+  jaipur: [26.9124, 75.7873],
+  jodhpur: [26.2389, 73.0243],
+  udaipur: [24.5854, 73.7125],
+  lucknow: [26.8467, 80.9462],
+  kanpur: [26.4499, 80.3319],
+  varanasi: [25.3176, 82.9739],
+  agra: [27.1767, 78.0081],
+  chandigarh: [30.7333, 76.7794],
+  ludhiana: [30.9010, 75.8573],
+  amritsar: [31.6340, 74.8723],
+  dehradun: [30.3165, 78.0322],
+  jammu: [32.7266, 74.8570],
+  srinagar: [34.0837, 74.7973],
+
+  // East & North-East India
+  kolkata: [22.5726, 88.3639],
+  calcutta: [22.5726, 88.3639],
+  patna: [25.5941, 85.1376],
+  bhubaneswar: [20.2961, 85.8245],
+  cuttack: [20.4625, 85.8830],
+  ranchi: [23.3441, 85.3096],
+  jamshedpur: [22.8046, 86.2029],
+  guwahati: [26.1445, 91.7362],
+
+  // Major States
+  kerala: [8.5241, 76.9366],
+  "tamil nadu": [13.0827, 80.2707],
+  karnataka: [12.9716, 77.5946],
+  maharashtra: [19.0760, 72.8777],
+  gujarat: [23.0225, 72.5714],
+  rajasthan: [26.9124, 75.7873],
+  "uttar pradesh": [26.8467, 80.9462],
+  "west bengal": [22.5726, 88.3639],
+  telangana: [17.3850, 78.4867],
+  "andhra pradesh": [16.5062, 80.6480],
+  punjab: [30.7333, 76.7794],
+  haryana: [28.4595, 77.0266],
+  "madhya pradesh": [22.7196, 75.8577],
+  goa: [15.2993, 74.1240],
+  odisha: [20.2961, 85.8245],
+  assam: [26.1445, 91.7362],
+
+  // Major International Logistics Hubs
+  dubai: [25.2048, 55.2708],
+  "abu dhabi": [24.4539, 54.3773],
+  singapore: [1.3521, 103.8198],
+  london: [51.5074, -0.1278],
+  "new york": [40.7128, -74.0060],
+  chicago: [41.8781, -87.6298],
+  "san francisco": [37.7749, -122.4194],
+  "los angeles": [34.0522, -118.2437],
+  dallas: [32.7767, -96.7970],
+  tokyo: [35.6762, 139.6503],
+  shanghai: [31.2304, 121.4737],
+  "hong kong": [22.3193, 114.1694],
+  sydney: [-33.8688, 151.2093],
 };
 const WS_MAX_DELAY = 30000;
 const STATUS_COLORS = {
@@ -25,16 +135,36 @@ const STATUS_COLORS = {
   Delivered: "#059669", Delayed: "#D97706", Cancelled: "#DC2626",
 };
 const ROUTE_TYPE_COLORS = {
-  fastest: "#4F46E5", shortest: "#0D9488", traffic_avoidance: "#D97706", fuel_efficient: "#059669",
+  fastest: "#4F46E5", shortest: "#0D9488", other: "#8B5CF6", traffic_avoidance: "#D97706", fuel_efficient: "#059669",
 };
 
 function getCityCoords(name) {
   if (!name) return null;
   const key = name.trim().toLowerCase();
   for (const [city, coords] of Object.entries(CITY_COORDS)) {
-    if (key.includes(city)) return coords;
+    if (key.includes(city) || city.includes(key)) return coords;
   }
   return null;
+}
+
+function resolveCoordinates(address, explicitLat, explicitLon) {
+  if (explicitLat !== null && explicitLat !== undefined && explicitLon !== null && explicitLon !== undefined) {
+    const lat = parseFloat(explicitLat);
+    const lon = parseFloat(explicitLon);
+    if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
+      return [lat, lon];
+    }
+  }
+  return getCityCoords(address) || [8.8932, 76.6141];
+}
+
+function isPointNearRoute(lat, lon, sCoords, dCoords) {
+  if (!sCoords || !dCoords) return true;
+  const minLat = Math.min(sCoords[0], dCoords[0]) - 1.2;
+  const maxLat = Math.max(sCoords[0], dCoords[0]) + 1.2;
+  const minLon = Math.min(sCoords[1], dCoords[1]) - 1.2;
+  const maxLon = Math.max(sCoords[1], dCoords[1]) + 1.2;
+  return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
 }
 
 const createVehicleIcon = (heading = 0, isActive = true) => L.divIcon({
@@ -173,27 +303,72 @@ const TrackingMap = () => {
   const loadVehicleData = useCallback(async () => {
     if (!activeVehicleId) return;
     try {
+      const currentShipment = allShipments.find(s => s.shipment_id === selectedShipmentId);
+      const sCoords = currentShipment ? resolveCoordinates(currentShipment.source, currentShipment.source_lat, currentShipment.source_lon) : null;
+      const dCoords = currentShipment ? resolveCoordinates(currentShipment.destination, currentShipment.destination_lat, currentShipment.destination_lon) : null;
+
       const [posData, trackData, linkedShipments] = await Promise.all([
         gpsApi.getLatest(activeVehicleId).catch(() => null),
         gpsApi.getTrack(activeVehicleId, 50).catch(() => []),
         shipmentsApi.getByVehicle(activeVehicleId).catch(() => []),
       ]);
+
       if (posData) {
         const lat = parseFloat(posData.latitude), lon = parseFloat(posData.longitude);
-        setPosition([lat, lon]);
+        if (currentShipment?.status === "Delivered" && dCoords) {
+          setPosition(dCoords);
+        } else if (sCoords && dCoords && isPointNearRoute(lat, lon, sCoords, dCoords)) {
+          setPosition([lat, lon]);
+        } else if (sCoords) {
+          setPosition(sCoords);
+        } else {
+          setPosition([lat, lon]);
+        }
         if (posData.speed)   setSpeed(parseFloat(posData.speed));
         if (posData.heading) setHeading(parseFloat(posData.heading));
         setLastUpdated(new Date(posData.recorded_time));
       } else {
-        const matched = linkedShipments[0] || allShipments.find(s => s.shipment_id === selectedShipmentId);
-        const originCoords = matched ? getCityCoords(matched.source) : null;
-        setPosition(originCoords || [19.0760, 72.8777]);
+        if (currentShipment?.status === "Delivered" && dCoords) {
+          setPosition(dCoords);
+        } else if (sCoords) {
+          setPosition(sCoords);
+        } else {
+          setPosition([19.0760, 72.8777]);
+        }
       }
-      if (trackData?.length > 0) setTrackHistory(trackData.map(t => [parseFloat(t.latitude), parseFloat(t.longitude)]));
+      if (trackData?.length > 0) {
+        // Filter track points to only include points relevant to the current route corridor
+        const validPoints = trackData
+          .map((t) => [parseFloat(t.latitude), parseFloat(t.longitude)])
+          .filter(([lat, lon]) => {
+            if (isNaN(lat) || isNaN(lon)) return false;
+            if (sCoords && dCoords && !isPointNearRoute(lat, lon, sCoords, dCoords)) return false;
+            return true;
+          });
+
+        // Filter out large telemetry jumps from disjoint historical records
+        const cleanTrack = [];
+        for (let i = 0; i < validPoints.length; i++) {
+          if (cleanTrack.length === 0) {
+            cleanTrack.push(validPoints[i]);
+          } else {
+            const prev = cleanTrack[cleanTrack.length - 1];
+            const dLat = (validPoints[i][0] - prev[0]) * 111;
+            const dLon = (validPoints[i][1] - prev[1]) * 111 * Math.cos((prev[0] * Math.PI) / 180);
+            const distKm = Math.sqrt(dLat * dLat + dLon * dLon);
+            if (distKm < 120) {
+              cleanTrack.push(validPoints[i]);
+            }
+          }
+        }
+        setTrackHistory(cleanTrack);
+      } else {
+        setTrackHistory([]);
+      }
       setActiveShipments(linkedShipments);
 
       // Load active trip & route for first in-transit shipment
-      const inTransitShipment = linkedShipments.find(s => s.status === "In Transit" || s.status === "Assigned");
+      const inTransitShipment = linkedShipments.find(s => s.status === "In Transit" || s.status === "Assigned") || currentShipment;
       if (inTransitShipment) {
         const trips = await tripsApi.list(0, 20).catch(() => []);
         const tripForShipment = trips.find(t => t.shipment_id === inTransitShipment.shipment_id && t.status !== "Completed");
@@ -213,6 +388,38 @@ const TrackingMap = () => {
   }, [activeVehicleId, allShipments, selectedShipmentId]);
 
   useEffect(() => { loadVehicleData(); }, [loadVehicleData]);
+
+  // Auto-fetch highway driving route for selected shipment
+  useEffect(() => {
+    const currentShipment = allShipments.find((s) => s.shipment_id === selectedShipmentId);
+    if (!currentShipment) return;
+
+    const sCoords = resolveCoordinates(currentShipment.source, currentShipment.source_lat, currentShipment.source_lon);
+    const dCoords = resolveCoordinates(currentShipment.destination, currentShipment.destination_lat, currentShipment.destination_lon);
+
+    if (sCoords && dCoords) {
+      const url = `https://router.project-osrm.org/route/v1/driving/${sCoords[1]},${sCoords[0]};${dCoords[1]},${dCoords[0]}?overview=full&geometries=geojson`;
+      fetch(url)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.code === "Ok" && data.routes?.[0]?.geometry?.coordinates) {
+            const coords = data.routes[0].geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+            setRouteCoords(coords);
+          }
+        })
+        .catch(() => {
+          const fallback = [];
+          for (let i = 0; i <= 20; i++) {
+            const t = i / 20;
+            fallback.push([
+              sCoords[0] + t * (dCoords[0] - sCoords[0]),
+              sCoords[1] + t * (dCoords[1] - sCoords[1])
+            ]);
+          }
+          setRouteCoords(fallback);
+        });
+    }
+  }, [selectedShipmentId, allShipments]);
 
   /* WebSocket with exponential backoff reconnect */
   const connectWs = useCallback(() => {
@@ -291,7 +498,6 @@ const TrackingMap = () => {
     };
   }, [activeVehicleId, connectWs]);
 
-  /* Handlers */
   const handleShipmentSelect = (shipmentId) => {
     setSelectedShipmentId(shipmentId);
     setActiveTrip(null);
@@ -299,8 +505,16 @@ const TrackingMap = () => {
     setRouteCoords(null);
     setTrackHistory([]);
     const target = allShipments.find((s) => s.shipment_id === shipmentId);
-    if (target?.vehicle_id) setActiveVehicleId(target.vehicle_id);
-    else toast.info("This shipment has no vehicle assigned yet.");
+    if (target) {
+      const sCoords = resolveCoordinates(target.source, target.source_lat, target.source_lon);
+      const dCoords = resolveCoordinates(target.destination, target.destination_lat, target.destination_lon);
+      setPosition(target.status === "Delivered" ? dCoords : sCoords);
+      if (target.vehicle_id) {
+        setActiveVehicleId(target.vehicle_id);
+      } else {
+        toast.info("This shipment has no vehicle assigned yet.");
+      }
+    }
   };
 
   const handleRouteChange = (type) => {
@@ -362,27 +576,80 @@ const TrackingMap = () => {
 
   const simulatePing = () => {
     const currentShipment = allShipments.find((s) => s.shipment_id === selectedShipmentId);
-    const destCoords = currentShipment ? getCityCoords(currentShipment.destination) : [19.0760, 72.8777];
-    let newLat, newLon;
-    if (destCoords && position) {
-      newLat = position[0] + (destCoords[0] - position[0]) * 0.08 + (Math.random() - 0.5) * 0.01;
-      newLon = position[1] + (destCoords[1] - position[1]) * 0.08 + (Math.random() - 0.5) * 0.01;
-    } else {
-      newLat = (position?.[0] ?? 19.0760) + 0.01;
-      newLon = (position?.[1] ?? 72.8777) + 0.01;
+    if (!currentShipment) {
+      toast.warning("Please select a shipment from the dropdown first.");
+      return;
     }
-    const ping = { type: "location_ping", latitude: newLat, longitude: newLon, speed: Math.floor(Math.random() * 35) + 45, heading: 35 };
+    const srcCoords = resolveCoordinates(currentShipment.source, currentShipment.source_lat, currentShipment.source_lon);
+    const destCoords = resolveCoordinates(currentShipment.destination, currentShipment.destination_lat, currentShipment.destination_lon);
+
+    let newLat, newLon, headingDeg;
+    if (routeCoords && routeCoords.length > 5) {
+      const curr = position || srcCoords;
+      let closestIdx = 0;
+      let minDist = Infinity;
+      for (let i = 0; i < routeCoords.length; i++) {
+        const dLat = routeCoords[i][0] - curr[0];
+        const dLon = routeCoords[i][1] - curr[1];
+        const dist = dLat * dLat + dLon * dLon;
+        if (dist < minDist) {
+          minDist = dist;
+          closestIdx = i;
+        }
+      }
+      const stepAdvance = Math.max(1, Math.floor(routeCoords.length * 0.05));
+      const stepIdx = Math.min(closestIdx + stepAdvance, routeCoords.length - 1);
+      newLat = Number(routeCoords[stepIdx][0].toFixed(6));
+      newLon = Number(routeCoords[stepIdx][1].toFixed(6));
+
+      const nextPt = routeCoords[Math.min(stepIdx + 1, routeCoords.length - 1)];
+      const dL = nextPt[1] - newLon;
+      const y = Math.sin(dL) * Math.cos(nextPt[0]);
+      const x = Math.cos(newLat) * Math.sin(nextPt[0]) - Math.sin(newLat) * Math.cos(nextPt[0]) * Math.cos(dL);
+      headingDeg = Math.round(((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360);
+    } else {
+      let startLat = position ? position[0] : srcCoords[0];
+      let startLon = position ? position[1] : srcCoords[1];
+      const step = 0.08;
+      newLat = Number((startLat + (destCoords[0] - startLat) * step).toFixed(6));
+      newLon = Number((startLon + (destCoords[1] - startLon) * step).toFixed(6));
+      const dL = destCoords[1] - newLon;
+      const y = Math.sin(dL) * Math.cos(destCoords[0]);
+      const x = Math.cos(newLat) * Math.sin(destCoords[0]) - Math.sin(newLat) * Math.cos(destCoords[0]) * Math.cos(dL);
+      headingDeg = Math.round(((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360);
+    }
+
+    const simSpeed = Math.floor(Math.random() * 20) + 55;
+
+    if (currentShipment.vehicle_id) {
+      gpsApi.pushPing(currentShipment.vehicle_id, {
+        latitude: newLat,
+        longitude: newLon,
+        speed: simSpeed,
+        heading: headingDeg,
+      }).catch(() => {});
+    }
+
+    const ping = { type: "location_ping", latitude: newLat, longitude: newLon, speed: simSpeed, heading: headingDeg };
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(ping));
-    } else {
-      setPosition([newLat, newLon]); setSpeed(ping.speed); setHeading(ping.heading); setLastUpdated(new Date());
     }
-    toast.success("GPS ping sent!", { icon: "📡" });
+
+    setPosition([newLat, newLon]);
+    setSpeed(simSpeed);
+    setHeading(headingDeg);
+    setLastUpdated(new Date());
+    setTrackHistory((prev) => [...prev, [newLat, newLon]]);
+    toast.success(`GPS ping along route! (${newLat.toFixed(4)}, ${newLon.toFixed(4)})`, { icon: "🛰️" });
   };
 
   const currentShipment = allShipments.find((s) => s.shipment_id === selectedShipmentId);
-  const sourceCoords    = currentShipment ? getCityCoords(currentShipment.source)      : null;
-  const destCoords      = currentShipment ? getCityCoords(currentShipment.destination) : null;
+  const sourceCoords    = currentShipment
+    ? resolveCoordinates(currentShipment.source, currentShipment.source_lat, currentShipment.source_lon)
+    : null;
+  const destCoords      = currentShipment
+    ? resolveCoordinates(currentShipment.destination, currentShipment.destination_lat, currentShipment.destination_lon)
+    : null;
   const defaultCenter   = position || sourceCoords || [19.0760, 72.8777];
   const shipsWithVehicle = allShipments.filter((s) => s.vehicle_id);
   const activeRouteColor = ROUTE_TYPE_COLORS[selectedRoute] || "#0D9488";
@@ -502,8 +769,7 @@ const TrackingMap = () => {
               {[
                 { key: "fastest", label: "Fastest", icon: Zap },
                 { key: "shortest", label: "Shortest", icon: Route },
-                { key: "traffic_avoidance", label: "Traffic Free", icon: Navigation },
-                { key: "fuel_efficient", label: "Fuel Efficient", icon: Fuel },
+                { key: "other", label: "Other", icon: Navigation },
               ].map(({ key, label, icon: Icon }) => {
                 const info = routeOptions[key];
                 const isActive = selectedRoute === key;
@@ -592,9 +858,9 @@ const TrackingMap = () => {
                 <Polyline positions={[sourceCoords, position || sourceCoords, destCoords]} color="#0D9488" weight={3} opacity={0.6} dashArray="6, 10" />
               )}
 
-              {/* Vehicle GPS track history trail */}
+              {/* Vehicle GPS track history / breadcrumb trail */}
               {trackHistory.length > 1 && (
-                <Polyline positions={trackHistory} color="#4F46E5" weight={5} opacity={0.85} />
+                <Polyline positions={trackHistory} color="#0284C7" weight={4} opacity={0.9} dashArray="5, 8" />
               )}
             </MapContainer>
           )}

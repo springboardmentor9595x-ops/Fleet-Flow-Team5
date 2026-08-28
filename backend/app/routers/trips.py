@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User, RoleEnum
+from app.models.driver import Driver
 from app.schemas.trip import (
     TripCreate,
     TripEndRequest,
@@ -24,16 +25,6 @@ from app.core.route_optimization import (
 
 router = APIRouter()
 
-MANAGEMENT_ROLES = {RoleEnum.Admin, RoleEnum.FleetManager, RoleEnum.Dispatcher}
-
-
-def _require_management(user: User):
-    if user.role not in MANAGEMENT_ROLES and user.role != RoleEnum.Driver:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Authorized access required.",
-        )
-
 
 @router.post("/", response_model=TripOut, status_code=status.HTTP_201_CREATED)
 def schedule_trip(
@@ -41,8 +32,12 @@ def schedule_trip(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Schedule a new trip for a shipment, vehicle, and driver."""
-    _require_management(current_user)
+    """Schedule a new trip. Admin & FleetManager only."""
+    if current_user.role not in (RoleEnum.Admin, RoleEnum.FleetManager):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Admin or FleetManager can schedule trips and select route modes.",
+        )
     trip = crud.create_trip(db, data, current_user)
     return trip
 
@@ -54,7 +49,14 @@ def list_trips(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List all scheduled and active trips."""
+    """List trips. Admin/FleetManager/Dispatcher see all; Driver sees assigned trips only."""
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        if not driver:
+            return []
+        from app.models.trip import Trip
+        return db.query(Trip).filter(Trip.driver_id == driver.driver_id).order_by(Trip.created_at.desc()).offset(skip).limit(limit).all()
+
     return crud.list_trips(db, skip=skip, limit=limit)
 
 
@@ -68,6 +70,12 @@ def get_trip(
     t = crud.get_trip(db, trip_id)
     if not t:
         raise HTTPException(status_code=404, detail="Trip not found.")
+
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        if not driver or t.driver_id != driver.driver_id:
+            raise HTTPException(status_code=403, detail="You can only view your own trips.")
+
     return t
 
 
@@ -77,13 +85,20 @@ def start_trip(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Start a trip (sets trip & shipment status to In Transit, locks vehicle & driver)."""
+    """Start a trip. Drivers start own trip; Admin & FleetManager can start/override."""
     t = crud.get_trip(db, trip_id)
     if not t:
         raise HTTPException(status_code=404, detail="Trip not found.")
+
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        if not driver or t.driver_id != driver.driver_id:
+            raise HTTPException(status_code=403, detail="You can only start your own assigned trip.")
+    elif current_user.role == RoleEnum.Dispatcher:
+        raise HTTPException(status_code=403, detail="Dispatchers cannot start trips.")
+
     if t.status in ("In Progress", "Completed"):
         raise HTTPException(status_code=400, detail=f"Trip is already {t.status}.")
-
 
     started = crud.start_trip(db, t, current_user)
     return started
@@ -96,16 +111,25 @@ def end_trip(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """End a trip (records actual distance/time, updates shipment to Delivered, frees vehicle)."""
+    """End a trip. Drivers end own trip; Admin & FleetManager can end/override."""
     t = crud.get_trip(db, trip_id)
     if not t:
         raise HTTPException(status_code=404, detail="Trip not found.")
+
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        if not driver or t.driver_id != driver.driver_id:
+            raise HTTPException(status_code=403, detail="You can only end your own assigned trip.")
+    elif current_user.role == RoleEnum.Dispatcher:
+        raise HTTPException(status_code=403, detail="Dispatchers cannot end trips.")
+
     if t.status == "Completed":
         raise HTTPException(status_code=400, detail="Trip is already completed.")
 
     actual_dist = req.actual_distance_km if req else None
     ended = crud.end_trip(db, t, actual_dist, current_user)
     return ended
+
 
 
 @router.post("/{trip_id}/recalculate", response_model=TripOut)
@@ -130,7 +154,7 @@ def get_trip_route_options(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Return all 4 route options (Fastest, Shortest, Traffic Avoidance, Fuel-Efficient) for a trip."""
+    """Return all route options (Fastest, Shortest, Other) for a trip."""
     t = crud.get_trip(db, trip_id)
     if not t:
         raise HTTPException(status_code=404, detail="Trip not found.")

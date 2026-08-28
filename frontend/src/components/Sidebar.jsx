@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import fleetApi from "../api/fleet";
+import NotificationBell from "./NotificationBell";
 import {
   Truck,
   LayoutDashboard,
@@ -12,16 +14,22 @@ import {
   ChevronRight,
   Users,
   Navigation,
-  Wrench
+  Wrench,
+  FileText,
+  ToggleLeft,
+  ToggleRight,
+  Activity
 } from "lucide-react";
+import { toast } from "react-toastify";
 
 const navItems = [
   {
     to: "/dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["Admin", "FleetManager", "Dispatcher"],
+    roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
   },
+
   {
     to: "/shipments",
     label: "Shipments",
@@ -38,7 +46,7 @@ const navItems = [
     to: "/drivers",
     label: "Drivers Directory",
     icon: Users,
-    roles: ["Admin", "FleetManager", "Dispatcher"],
+    roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
   },
   {
     to: "/trips",
@@ -56,9 +64,16 @@ const navItems = [
     to: "/maintenance",
     label: "Maintenance & Fuel",
     icon: Wrench,
-    roles: ["Admin", "FleetManager"],
+    roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
+  },
+  {
+    to: "/reports",
+    label: "Reports & Export",
+    icon: FileText,
+    roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
   },
 ];
+
 
 const roleBadgeStyle = (role) => {
   switch (role) {
@@ -74,6 +89,35 @@ const Sidebar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const badge = roleBadgeStyle(user?.role);
+
+  const [driverStatus, setDriverStatus] = useState("Active");
+  const [togglingStatus, setTogglingStatus] = useState(false);
+
+  useEffect(() => {
+    if (user?.role === "Driver") {
+      fleetApi.getMyDriver()
+        .then((res) => {
+          if (res?.status) setDriverStatus(res.status);
+        })
+        .catch((err) => console.error("Error fetching driver profile:", err));
+    }
+  }, [user]);
+
+  const handleToggleDriverStatus = async () => {
+    const nextStatus = driverStatus === "Active" ? "Inactive" : "Active";
+    setTogglingStatus(true);
+    try {
+      const res = await fleetApi.setMyStatus(nextStatus);
+      setDriverStatus(res.status);
+      toast.success(`Duty status updated to ${res.status}`);
+      // Dispatch a custom event so other components (like Drivers page) update live
+      window.dispatchEvent(new Event("driver_status_changed"));
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to update status");
+    } finally {
+      setTogglingStatus(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -98,10 +142,10 @@ const Sidebar = () => {
       boxShadow: "2px 0 12px rgba(15,23,42,0.02)"
     }}>
       {/* Logo Header */}
-      <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid #E2E8F0" }}>
+      <div style={{ padding: "20px 18px 16px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div style={{
-            width: "38px", height: "38px", borderRadius: "10px",
+            width: "36px", height: "36px", borderRadius: "10px",
             background: "linear-gradient(135deg, #0D9488, #0891B2)",
             display: "flex", alignItems: "center", justifyContent: "center",
             boxShadow: "0 4px 12px rgba(13,148,136,0.25)",
@@ -109,11 +153,13 @@ const Sidebar = () => {
             <Truck size={18} color="white" />
           </div>
           <div>
-            <p style={{ color: "#0F172A", fontWeight: 800, fontSize: "16px", margin: 0, letterSpacing: "-0.02em" }}>FleetFlow</p>
-            <p style={{ color: "#0D9488", fontSize: "10px", margin: 0, fontFamily: "monospace", fontWeight: 700 }}>TEAL MODE v2.0</p>
+            <p style={{ color: "#0F172A", fontWeight: 800, fontSize: "15px", margin: 0, letterSpacing: "-0.02em" }}>FleetFlow</p>
+            <p style={{ color: "#0D9488", fontSize: "9px", margin: 0, fontFamily: "monospace", fontWeight: 700 }}>TEAL MODE v2.0</p>
           </div>
         </div>
+        <NotificationBell />
       </div>
+
 
       {/* User Card */}
       <div style={{ padding: "16px 20px", borderBottom: "1px solid #E2E8F0" }}>
@@ -141,14 +187,73 @@ const Sidebar = () => {
               </p>
             </div>
           </div>
-          <span style={{
-            display: "inline-block",
-            padding: "2px 8px", borderRadius: "6px",
-            fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em",
-            background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
-          }}>
-            {user?.role}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
+            <span style={{
+              display: "inline-block",
+              padding: "2px 8px", borderRadius: "6px",
+              fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em",
+              background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`,
+            }}>
+              {user?.role}
+            </span>
+          </div>
+
+          {/* Driver Duty Status Toggle inside Sidebar User Card */}
+          {user?.role === "Driver" && (
+            <div style={{
+              marginTop: "10px",
+              paddingTop: "8px",
+              borderTop: "1px dashed #CBD5E1",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>
+                  DUTY STATUS
+                </span>
+                <span style={{
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  padding: "1px 6px",
+                  borderRadius: "10px",
+                  background: driverStatus === "Active" ? "rgba(5,150,105,0.15)" : "rgba(220,38,38,0.15)",
+                  color: driverStatus === "Active" ? "#059669" : "#DC2626",
+                }}>
+                  ● {driverStatus}
+                </span>
+              </div>
+              <button
+                onClick={handleToggleDriverStatus}
+                disabled={togglingStatus}
+                style={{
+                  width: "100%",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  border: "none",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: togglingStatus ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  color: "#FFFFFF",
+                  background: driverStatus === "Active"
+                    ? "linear-gradient(135deg, #DC2626, #B91C1C)"
+                    : "linear-gradient(135deg, #059669, #047857)",
+                  boxShadow: driverStatus === "Active"
+                    ? "0 2px 6px rgba(220,38,38,0.25)"
+                    : "0 2px 6px rgba(5,150,105,0.25)",
+                  opacity: togglingStatus ? 0.6 : 1,
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {driverStatus === "Active" ? (
+                  <><ToggleLeft size={14} /> Go Off-Duty (Inactive)</>
+                ) : (
+                  <><ToggleRight size={14} /> Go On-Duty (Active)</>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

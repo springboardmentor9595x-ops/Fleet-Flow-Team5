@@ -148,19 +148,40 @@ const Login = () => {
                   <span>{error}</span>
                 </div>
                 {isUnverified && (
-                  <button
-                    type="button"
-                    onClick={handleResendEmail}
-                    disabled={resending}
-                    className="mt-1 text-xs bg-sky-600/30 hover:bg-sky-600/50 text-sky-300 border border-sky-500/40 px-3 py-1.5 rounded-md flex items-center gap-1.5 transition"
-                  >
-                    {resending ? (
-                      <RefreshCw className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Send className="w-3 h-3" />
-                    )}
-                    <span>Resend Verification Email to {email}</span>
-                  </button>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/signup?otp=1&email=${encodeURIComponent(email)}`)}
+                      className="text-xs bg-teal-600/30 hover:bg-teal-600/50 text-teal-300 border border-teal-500/40 px-3 py-1.5 rounded-md flex items-center gap-1.5 transition font-semibold"
+                    >
+                      <Zap className="w-3 h-3" />
+                      <span>Enter OTP to Sign In</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setResending(true);
+                        try {
+                          await api.post("/auth/resend-otp", { email });
+                          toast.success(`Fresh OTP sent to ${email}`);
+                          navigate(`/signup?otp=1&email=${encodeURIComponent(email)}`);
+                        } catch (e) {
+                          toast.error(e.response?.data?.detail || "Failed to resend OTP.");
+                        } finally {
+                          setResending(false);
+                        }
+                      }}
+                      disabled={resending}
+                      className="text-xs bg-sky-600/30 hover:bg-sky-600/50 text-sky-300 border border-sky-500/40 px-3 py-1.5 rounded-md flex items-center gap-1.5 transition"
+                    >
+                      {resending ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3" />
+                      )}
+                      <span>Resend OTP</span>
+                    </button>
+                  </div>
                 )}
               </div>
             )}

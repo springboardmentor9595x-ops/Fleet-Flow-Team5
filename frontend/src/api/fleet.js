@@ -46,6 +46,18 @@ export const fleetApi = {
   // Delete driver
   deleteDriver: (driverId) =>
     api.delete(`/drivers/${driverId}`).then((r) => r.data),
+
+  // Driver self-get own profile
+  getMyDriver: () =>
+    api.get("/drivers/me").then((r) => r.data),
+
+  // Driver self-update own status (Active / Inactive)
+  setMyStatus: (status) =>
+    api.patch("/drivers/me/status", { status }).then((r) => r.data),
+
+  // Admin/FleetManager quick-toggle a driver's status
+  toggleDriverStatus: (driverId, status) =>
+    api.put(`/drivers/${driverId}`, { status }).then((r) => r.data),
 };
 
 export default fleetApi;

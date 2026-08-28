@@ -55,6 +55,14 @@ def migrate():
     """)
     print("[OK] gps_tracking table columns ready")
 
+    # 5. Ensure columns on users table for OTP & verification
+    cur.execute("""
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT TRUE;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_code VARCHAR(10);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMP WITHOUT TIME ZONE;
+    """)
+    print("[OK] users table OTP columns ready")
+
     # 5. Fix/Ensure Enum values on PostgreSQL for shipmentstatusenum if enum exists
     try:
         cur.execute("SELECT enumlabel FROM pg_enum JOIN pg_type ON pg_enum.enumtypid = pg_type.oid WHERE pg_type.typname = 'shipmentstatusenum';")

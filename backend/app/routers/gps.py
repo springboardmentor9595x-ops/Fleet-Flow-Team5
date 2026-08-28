@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.deps import get_current_user
-from app.models.user import User
+from app.models.user import User, RoleEnum
+from app.models.driver import Driver
 from app.models.gps_tracking import GPSTracking
 from app.models.vehicle import Vehicle
 from app.schemas.gps import GPSPingIn, GPSPingOut
@@ -25,10 +26,17 @@ def get_all_vehicles_latest(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Returns the latest GPS position for every vehicle that has a GPS ping.
-    Used by TrackingMap to show fleet-wide live positions.
+    Returns the latest GPS position for vehicles.
+    Admin, FleetManager, and Dispatcher see fleet-wide positions.
+    Driver sees only their assigned vehicle's position.
     """
-    vehicles = db.query(Vehicle).all()
+    query = db.query(Vehicle)
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        driver_id = driver.driver_id if driver else current_user.user_id
+        query = query.filter(Vehicle.assigned_driver == driver_id)
+
+    vehicles = query.all()
     results = []
     for v in vehicles:
         pos = get_latest_position(db, v.vehicle_id)
@@ -56,11 +64,17 @@ def push_gps_ping(
 ):
     """
     Submit a GPS coordinate for a vehicle (used for simulation and driver apps).
-    Creates a new GPS tracking record and broadcasts via WebSocket.
+    Drivers can submit pings for their assigned vehicle.
     """
     vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found.")
+
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        driver_id = driver.driver_id if driver else current_user.user_id
+        if vehicle.assigned_driver != driver_id:
+            raise HTTPException(status_code=403, detail="You can only submit GPS pings for your assigned vehicle.")
 
     record = GPSTracking(
         vehicle_id=vehicle_id,
@@ -85,6 +99,13 @@ def get_latest_gps(
     current_user: User = Depends(get_current_user),
 ):
     """Get the most recent GPS position for a vehicle."""
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        driver_id = driver.driver_id if driver else current_user.user_id
+        v = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
+        if not v or v.assigned_driver != driver_id:
+            raise HTTPException(status_code=403, detail="You can only view GPS data for your assigned vehicle.")
+
     rec = get_latest_position(db, vehicle_id)
     if not rec:
         raise HTTPException(status_code=404, detail="No GPS data found for this vehicle.")
@@ -99,4 +120,12 @@ def get_gps_track(
     current_user: User = Depends(get_current_user),
 ):
     """Get historical GPS trail for a vehicle."""
+    if current_user.role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        driver_id = driver.driver_id if driver else current_user.user_id
+        v = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
+        if not v or v.assigned_driver != driver_id:
+            raise HTTPException(status_code=403, detail="You can only view GPS tracks for your assigned vehicle.")
+
     return get_position_history(db, vehicle_id, limit=limit)
+

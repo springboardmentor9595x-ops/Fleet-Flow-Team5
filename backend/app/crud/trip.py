@@ -31,6 +31,17 @@ def create_trip(db: Session, data: TripCreate, current_user) -> Trip:
     - Stores selected route type (fastest / shortest / traffic_avoidance / fuel_efficient).
     - Updates shipment status to Assigned.
     """
+    if data.driver_id:
+        drv = db.query(Driver).filter(Driver.driver_id == data.driver_id).first()
+        if drv and drv.status == "Inactive":
+            d_name = "Driver"
+            if drv.user_id:
+                u = db.query(User).filter(User.user_id == drv.user_id).first()
+                if u: d_name = u.full_name
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot schedule trip for '{d_name}'. The driver is currently Inactive / Off-Duty."
+            )
     shipment = db.query(Shipment).filter(Shipment.shipment_id == data.shipment_id).first() if data.shipment_id else None
 
     start_loc = data.start_location or (shipment.source if shipment else "Dispatch Hub")

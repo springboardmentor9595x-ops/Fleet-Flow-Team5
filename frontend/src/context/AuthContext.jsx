@@ -77,6 +77,30 @@ export const AuthProvider = ({ children }) => {
     return newUser;
   };
 
+  // Verify OTP and auto-authenticate user
+  const verifyOtp = async (email, otp) => {
+    const res = await api.post("/auth/verify-otp", { email, otp });
+    const accessToken = res.data.access_token;
+    localStorage.setItem("token", accessToken);
+    setToken(accessToken);
+
+    let userData = res.data.user;
+    if (!userData) {
+      const meRes = await api.get("/auth/me", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      userData = meRes.data;
+    }
+    setUser(userData);
+    return userData;
+  };
+
+  // Resend OTP code
+  const resendOtp = async (email) => {
+    const res = await api.post("/auth/resend-otp", { email });
+    return res.data;
+  };
+
   // Admin add user functionality
   const adminAddUser = async (newUserData) => {
     const res = await api.post("/auth/admin/add-user", newUserData);
@@ -116,6 +140,8 @@ export const AuthProvider = ({ children }) => {
         login,
         adminLogin,
         signup,
+        verifyOtp,
+        resendOtp,
         adminAddUser,
         fetchEmailLogs,
         logout,

@@ -262,7 +262,7 @@ const Shipments = () => {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
-                {["Tracking #", "Route", "Customer", "Weight", "Status", "Actions"].map((h) => (
+                {["Tracking #", "Route", "Customer", "Weight", "ETA / Arrival", "Status", "Actions"].map((h) => (
                   <th key={h} style={{
                     padding: "12px 16px", textAlign: "left",
                     fontSize: "10px", fontWeight: 800, color: "#475569",
@@ -311,6 +311,27 @@ const Shipments = () => {
                     <span style={{ color: "#475569", fontSize: "12px", fontWeight: 600 }}>
                       {s.shipment_weight ? `${s.shipment_weight} kg` : "—"}
                     </span>
+                  </td>
+                  <td style={{ padding: "13px 16px" }}>
+                    {s.status === "Delivered" ? (
+                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#059669" }}>Delivered</span>
+                    ) : s.status === "Cancelled" ? (
+                      <span style={{ fontSize: "11px", color: "#94A3B8" }}>Cancelled</span>
+                    ) : s.estimated_arrival ? (
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                          <Clock size={11} color={s.is_delayed ? "#DC2626" : "#0D9488"} />
+                          <span style={{ fontSize: "12px", fontWeight: 700, color: s.is_delayed ? "#DC2626" : "#0F172A" }}>
+                            {s.estimated_arrival}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "10px", color: s.is_delayed ? "#DC2626" : "#64748B", marginTop: "2px", display: "block" }}>
+                          {s.remaining_distance_km ? `${s.remaining_distance_km} km · ` : ""}{s.eta_status || "In transit"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: "11px", color: "#94A3B8" }}>Calculating...</span>
+                    )}
                   </td>
                   <td style={{ padding: "13px 16px" }}>
                     <StatusBadge status={s.status} />

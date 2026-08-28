@@ -50,27 +50,31 @@ def flush_database():
         full_name="System Administrator",
         role=RoleEnum.Admin,
         phone="+1-800-555-0101",
+        is_verified=True,
     )
     manager_user = User(
         email="manager@fleetflow.com",
-        password=hash_password("manager123"),
+        password=hash_password("admin123"),
         full_name="Fleet Manager",
         role=RoleEnum.FleetManager,
         phone="+1-800-555-0102",
+        is_verified=True,
     )
     dispatcher_user = User(
         email="dispatcher@fleetflow.com",
-        password=hash_password("dispatcher123"),
+        password=hash_password("admin123"),
         full_name="Logistics Dispatcher",
         role=RoleEnum.Dispatcher,
         phone="+1-800-555-0103",
+        is_verified=True,
     )
     driver_user = User(
         email="driver@fleetflow.com",
-        password=hash_password("driver123"),
+        password=hash_password("admin123"),
         full_name="John Driver",
         role=RoleEnum.Driver,
         phone="+1-800-555-0104",
+        is_verified=True,
     )
 
     db.add_all([admin_user, manager_user, dispatcher_user, driver_user])

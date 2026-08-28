@@ -60,15 +60,19 @@ const ShipmentDetail = () => {
   const [statusNote,  setStatusNote]  = useState("");
   const [showTripModal, setShowTripModal] = useState(false);
 
+  const [etaInfo, setEtaInfo] = useState(null);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [sData, hData] = await Promise.all([
+      const [sData, hData, etaRes] = await Promise.all([
         shipmentsApi.get(id),
         shipmentsApi.getHistory(id),
+        shipmentsApi.getETA(id).catch(() => null),
       ]);
       setShipment(sData);
       setHistory(hData);
+      setEtaInfo(etaRes);
 
       // Resolve human-readable vehicle + driver names in parallel
       const [vInfo, dInfo] = await Promise.all([
@@ -155,9 +159,9 @@ const ShipmentDetail = () => {
                 )}
                 {shipment.status}
               </span>
-              {shipment.is_delayed && (
+              {(shipment.is_delayed || etaInfo?.is_delayed) && (
                 <span style={{ padding: "3px 9px", borderRadius: "20px", fontSize: "11px", fontWeight: 800, background: "rgba(220,38,38,0.1)", color: "#DC2626", border: "1px solid rgba(220,38,38,0.25)", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <AlertTriangle size={11} /> Delayed
+                  <AlertTriangle size={11} /> {etaInfo?.delay_status || "Delayed"}
                 </span>
               )}
             </div>
@@ -198,6 +202,74 @@ const ShipmentDetail = () => {
             <h3 style={{ fontSize: "11px", fontWeight: 800, color: "#475569", margin: "0 0 20px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Delivery Progression</h3>
             <DeliveryProgressStepper status={shipment.status} />
           </div>
+
+          {/* Dynamic ETA & Route Telemetry Card */}
+          {shipment.status !== "Cancelled" && (
+            <div style={{
+              background: "linear-gradient(135deg, #FFFFFF, #F8FAFC)",
+              border: "1.5px solid #E2E8F0",
+              borderRadius: "16px",
+              padding: "24px",
+              boxShadow: "0 4px 16px rgba(15,23,42,0.04)",
+              position: "relative",
+              overflow: "hidden"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ padding: "6px", borderRadius: "8px", background: "rgba(13,148,136,0.1)", color: "#0D9488" }}>
+                    <Activity size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: "13px", fontWeight: 900, color: "#0F172A", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      Dynamic ETA & Route Telemetry
+                    </h3>
+                    <p style={{ fontSize: "11px", color: "#64748B", margin: 0 }}>
+                      Calculated from real-time speed, live road traffic & GPS coordinates
+                    </p>
+                  </div>
+                </div>
+
+                <span style={{
+                  padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 800,
+                  background: (etaInfo?.is_delayed || shipment.is_delayed) ? "rgba(220,38,38,0.1)" : "rgba(5,150,105,0.1)",
+                  color: (etaInfo?.is_delayed || shipment.is_delayed) ? "#DC2626" : "#059669",
+                  border: (etaInfo?.is_delayed || shipment.is_delayed) ? "1px solid rgba(220,38,38,0.25)" : "1px solid rgba(5,150,105,0.25)"
+                }}>
+                  {etaInfo?.delay_status || (shipment.status === "Delivered" ? "Delivered" : "On Schedule")}
+                </span>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "14px" }}>
+                <div style={{ background: "#FFFFFF", padding: "14px", borderRadius: "12px", border: "1px solid #E2E8F0" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Estimated Arrival</span>
+                  <p style={{ fontSize: "16px", fontWeight: 900, color: "#0D9488", margin: "4px 0 0" }}>
+                    {shipment.status === "Delivered" ? "Delivered" : (etaInfo?.eta_formatted || shipment.estimated_arrival || "Calculating...")}
+                  </p>
+                </div>
+
+                <div style={{ background: "#FFFFFF", padding: "14px", borderRadius: "12px", border: "1px solid #E2E8F0" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Remaining Distance</span>
+                  <p style={{ fontSize: "16px", fontWeight: 900, color: "#0F172A", margin: "4px 0 0" }}>
+                    {shipment.status === "Delivered" ? "0 km" : (etaInfo?.remaining_distance_km ? `${etaInfo.remaining_distance_km} km` : (shipment.remaining_distance_km ? `${shipment.remaining_distance_km} km` : "—"))}
+                  </p>
+                </div>
+
+                <div style={{ background: "#FFFFFF", padding: "14px", borderRadius: "12px", border: "1px solid #E2E8F0" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Travel Duration</span>
+                  <p style={{ fontSize: "16px", fontWeight: 900, color: "#4F46E5", margin: "4px 0 0" }}>
+                    {shipment.status === "Delivered" ? "Completed" : (etaInfo?.duration_human || (shipment.remaining_duration_mins ? `${Math.round(shipment.remaining_duration_mins)} mins` : "—"))}
+                  </p>
+                </div>
+
+                <div style={{ background: "#FFFFFF", padding: "14px", borderRadius: "12px", border: "1px solid #E2E8F0" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Traffic Condition</span>
+                  <p style={{ fontSize: "12px", fontWeight: 700, color: etaInfo?.traffic_factor >= 1.3 ? "#DC2626" : "#059669", margin: "6px 0 0" }}>
+                    {etaInfo?.traffic_condition || shipment.traffic_condition || "Normal Traffic Flow"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Details Card */}
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: "16px", padding: "24px", boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}>

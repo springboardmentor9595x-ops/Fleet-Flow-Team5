@@ -13,6 +13,7 @@ import Drivers from "./pages/Drivers";
 import Trips from "./pages/Trips";
 import Maintenance from "./pages/Maintenance";
 import TrackingMap from "./pages/TrackingMap";
+import Reports from "./pages/Reports";
 import VerifyEmail from "./pages/VerifyEmail";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -66,9 +67,11 @@ function App() {
             <Route path="/drivers" element={<Drivers />} />
             <Route path="/trips" element={<Trips />} />
             <Route path="/maintenance" element={<Maintenance />} />
+            <Route path="/reports" element={<Reports />} />
             <Route path="/tracking/:vehicleId" element={<TrackingMap />} />
             <Route path="/tracking" element={<TrackingMap />} />
           </Route>
+
 
           {/* Default Fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

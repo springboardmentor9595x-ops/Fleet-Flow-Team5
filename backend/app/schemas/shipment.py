@@ -76,18 +76,34 @@ class ShipmentOut(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     is_delayed: bool = False
+    estimated_arrival: Optional[str] = None
+    estimated_arrival_iso: Optional[str] = None
+    remaining_distance_km: Optional[float] = None
+    remaining_duration_mins: Optional[float] = None
+    eta_status: Optional[str] = None
+    traffic_condition: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_orm_with_delay(cls, obj):
-        """Build with delay flag computed."""
+    def from_orm_with_delay(cls, obj, eta_data: Optional[dict] = None):
+        """Build with delay flag and dynamic ETA computed."""
         instance = cls.model_validate(obj)
         if obj.expected_delivery and obj.status not in (
             ShipmentStatusEnum.Delivered,
             ShipmentStatusEnum.Cancelled,
         ):
             instance.is_delayed = datetime.utcnow() > obj.expected_delivery
+            
+        if eta_data:
+            instance.estimated_arrival = eta_data.get("eta_formatted")
+            instance.estimated_arrival_iso = eta_data.get("eta_timestamp")
+            instance.remaining_distance_km = eta_data.get("remaining_distance_km")
+            instance.remaining_duration_mins = eta_data.get("remaining_duration_mins")
+            instance.eta_status = eta_data.get("delay_status")
+            instance.traffic_condition = eta_data.get("traffic_condition")
+            if eta_data.get("is_delayed") is not None:
+                instance.is_delayed = instance.is_delayed or eta_data["is_delayed"]
         return instance
 
 

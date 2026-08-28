@@ -35,8 +35,18 @@ def _require_management(user: User):
         )
 
 
-def _shipment_out(s) -> ShipmentOut:
-    return ShipmentOut.from_orm_with_delay(s)
+def _shipment_out(s, db: Optional[Session] = None) -> ShipmentOut:
+    eta_data = None
+    try:
+        from app.core.route_optimization import compute_shipment_eta
+        from app.crud.gps import get_latest_position
+        latest_pos = None
+        if db and s.vehicle_id:
+            latest_pos = get_latest_position(db, s.vehicle_id)
+        eta_data = compute_shipment_eta(s, latest_pos)
+    except Exception:
+        pass
+    return ShipmentOut.from_orm_with_delay(s, eta_data)
 
 
 # ── Create ──────────────────────────────────────────────────────────────────
@@ -59,7 +69,7 @@ def create_shipment(
         )
 
     shipment = crud.create_shipment(db, data, created_by=current_user)
-    return _shipment_out(shipment)
+    return _shipment_out(shipment, db)
 
 
 # ── List ─────────────────────────────────────────────────────────────────────
@@ -78,7 +88,7 @@ def list_shipments(
     shipments = crud.get_all_shipments(db, current_user, skip=skip, limit=limit)
     delayed_count = sum(1 for s in shipments if s.status == ShipmentStatusEnum.Delayed)
     return ShipmentListResponse(
-        shipments=[_shipment_out(s) for s in shipments],
+        shipments=[_shipment_out(s, db) for s in shipments],
         total=len(shipments),
         delayed_count=delayed_count,
     )
@@ -131,7 +141,7 @@ def get_shipment(
     s = crud.get_shipment(db, shipment_id)
     if not s:
         raise HTTPException(status_code=404, detail="Shipment not found.")
-    return _shipment_out(s)
+    return _shipment_out(s, db)
 
 
 # ── History / Timeline ────────────────────────────────────────────────────────
@@ -173,7 +183,7 @@ def update_shipment(
             raise HTTPException(status_code=400, detail="Tracking number already in use.")
 
     updated = crud.update_shipment(db, s, data, current_user)
-    return _shipment_out(updated)
+    return _shipment_out(updated, db)
 
 
 # ── Status Update ─────────────────────────────────────────────────────────────
@@ -209,7 +219,7 @@ def update_status(
         )
 
     updated = crud.update_shipment_status(db, s, data.status, data.note, current_user)
-    return _shipment_out(updated)
+    return _shipment_out(updated, db)
 
 
 # ── Cancel / Delete ───────────────────────────────────────────────────────────
@@ -397,56 +407,29 @@ def get_shipment_dynamic_eta(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Calculate dynamic ETA for a single shipment based on live assigned vehicle GPS position.
+    Calculate dynamic ETA for a single shipment based on live assigned vehicle GPS position or route telemetry.
     """
-    from app.core.route_optimization import calculate_dynamic_eta
+    from app.core.route_optimization import compute_shipment_eta
     from app.crud.gps import get_latest_position
 
     s = crud.get_shipment(db, shipment_id)
     if not s:
         raise HTTPException(status_code=404, detail="Shipment not found.")
 
-    if not s.vehicle_id:
-        return {
-            "shipment_id": str(shipment_id),
-            "tracking_number": s.tracking_number,
-            "status": s.status.value,
-            "has_assigned_vehicle": False,
-            "detail": "No vehicle assigned to this shipment.",
-        }
+    latest_pos = None
+    if s.vehicle_id:
+        latest_pos = get_latest_position(db, s.vehicle_id)
 
-    latest_pos = get_latest_position(db, s.vehicle_id)
-    if not latest_pos:
-        return {
-            "shipment_id": str(shipment_id),
-            "tracking_number": s.tracking_number,
-            "status": s.status.value,
-            "has_assigned_vehicle": True,
-            "has_gps_data": False,
-            "detail": "Vehicle assigned but no GPS pings received yet.",
-        }
-
-    # Resolve destination coordinates
-    dest_lat = float(s.destination_lat) if s.destination_lat else 19.0760
-    dest_lon = float(s.destination_lon) if s.destination_lon else 72.8777
-
-    eta_info = calculate_dynamic_eta(
-        current_lat=float(latest_pos.latitude),
-        current_lon=float(latest_pos.longitude),
-        dest_lat=dest_lat,
-        dest_lon=dest_lon,
-        current_speed_kmh=float(latest_pos.speed) if latest_pos.speed else None,
-        expected_delivery=s.expected_delivery,
-    )
+    eta_info = compute_shipment_eta(s, latest_pos)
 
     return {
         "shipment_id": str(shipment_id),
         "tracking_number": s.tracking_number,
         "status": s.status.value,
-        "has_assigned_vehicle": True,
-        "has_gps_data": True,
-        "vehicle_id": str(s.vehicle_id),
-        "latest_ping_time": latest_pos.recorded_time.isoformat(),
+        "has_assigned_vehicle": bool(s.vehicle_id),
+        "has_gps_data": bool(latest_pos),
+        "vehicle_id": str(s.vehicle_id) if s.vehicle_id else None,
+        "latest_ping_time": latest_pos.recorded_time.isoformat() if latest_pos else None,
         "expected_delivery": s.expected_delivery.isoformat() if s.expected_delivery else None,
         **eta_info,
     }

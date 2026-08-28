@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
+from fastapi import HTTPException
+
 from app.models.shipment import Shipment, ShipmentHistory, ShipmentStatusEnum
 from app.models.user import User, RoleEnum
 from app.models.driver import Driver
@@ -18,6 +20,19 @@ from app.core.route_optimization import geocode_address
 def create_shipment(db: Session, data: ShipmentCreate, created_by: User) -> Shipment:
     """Create a new shipment with status set to Created."""
     shipment_dict = data.model_dump(exclude_unset=True)
+
+    # Validate driver status if driver assigned
+    if shipment_dict.get("driver_id"):
+        drv = db.query(Driver).filter(Driver.driver_id == shipment_dict["driver_id"]).first()
+        if drv and drv.status == "Inactive":
+            d_name = "Driver"
+            if drv.user_id:
+                u = db.query(User).filter(User.user_id == drv.user_id).first()
+                if u: d_name = u.full_name
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot assign job to '{d_name}'. The driver is currently Inactive / Off-Duty."
+            )
 
     # Auto-resolve coordinates if not provided
     if not shipment_dict.get("source_lat") or not shipment_dict.get("source_lon"):
@@ -123,6 +138,19 @@ def update_shipment(
 ) -> Shipment:
     """Edit shipment details or reassign vehicle/driver."""
     update_data = data.model_dump(exclude_unset=True)
+
+    # Validate driver status if updating assigned driver
+    if update_data.get("driver_id"):
+        drv = db.query(Driver).filter(Driver.driver_id == update_data["driver_id"]).first()
+        if drv and drv.status == "Inactive":
+            d_name = "Driver"
+            if drv.user_id:
+                u = db.query(User).filter(User.user_id == drv.user_id).first()
+                if u: d_name = u.full_name
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot assign job to '{d_name}'. The driver is currently Inactive / Off-Duty."
+            )
 
     # Re-geocode if source/destination updated
     if "source" in update_data and (not data.source_lat or not data.source_lon):

@@ -23,18 +23,11 @@ const ROUTE_TYPES = [
     description: "Minimum physical distance via local roads",
   },
   {
-    key: "traffic_avoidance",
-    label: "Traffic Avoidance",
+    key: "other",
+    label: "Other",
     icon: Navigation,
-    color: "#D97706",
-    description: "Bypass peak-hour congestion corridors",
-  },
-  {
-    key: "fuel_efficient",
-    label: "Fuel-Efficient",
-    icon: Fuel,
-    color: "#059669",
-    description: "Steady cruise speed — fewer stops and turns",
+    color: "#8B5CF6",
+    description: "Alternative customizable or balanced route strategy",
   },
 ];
 
@@ -52,7 +45,7 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
     // Load available vehicles & drivers
     Promise.all([
       fleetApi.getVehicles("Available").catch(() => []),
-      fleetApi.getDrivers("Active").catch(() => []),
+      fleetApi.getDrivers().catch(() => []),
     ]).then(([v, d]) => {
       setVehicles(Array.isArray(v) ? v : []);
       setDrivers(Array.isArray(d) ? d : []);
@@ -62,6 +55,12 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
   const handleSchedule = async () => {
     if (!selectedVehicle) { toast.error("Please select a vehicle."); return; }
     if (!selectedDriver)  { toast.error("Please select a driver.");  return; }
+
+    const selDrv = drivers.find((d) => String(d.driver_id) === String(selectedDriver));
+    if (selDrv && selDrv.status === "Inactive") {
+      toast.error(`Cannot assign trip to '${selDrv.driver_name || "Driver"}'. Driver is currently Inactive / Off-Duty.`);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -148,11 +147,14 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
               style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "#F8FAFC", border: "1px solid #E2E8F0", color: "#0F172A", fontSize: "13px", fontWeight: 600, outline: "none", cursor: "pointer" }}
             >
               <option value="">-- Select Driver --</option>
-              {drivers.map((d) => (
-                <option key={d.driver_id} value={d.driver_id}>
-                  {d.driver_name || "Unnamed Driver"} · Lic: {d.license_number || "N/A"} [{d.status}]
-                </option>
-              ))}
+              {drivers.map((d) => {
+                const isInactive = d.status === "Inactive";
+                return (
+                  <option key={d.driver_id} value={d.driver_id} disabled={isInactive}>
+                    {d.driver_name || "Unnamed Driver"} · Lic: {d.license_number || "N/A"} {isInactive ? " 🚫 [INACTIVE - OFF DUTY]" : " 🟢 [ACTIVE]"}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -161,7 +163,7 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
             <label style={{ fontSize: "11px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               Route Strategy
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px" }}>
               {ROUTE_TYPES.map((rt) => {
                 const isSelected = routeType === rt.key;
                 return (
@@ -191,7 +193,7 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
               })}
             </div>
             <p style={{ fontSize: "10px", color: "#94A3B8", margin: "8px 0 0", fontStyle: "italic" }}>
-              Traffic Avoidance & Fuel-Efficient use heuristic estimates (OSRM does not provide live traffic data).
+              OSRM route planning with dynamic distance, travel duration, and route geometry calculation.
             </p>
           </div>
         </div>

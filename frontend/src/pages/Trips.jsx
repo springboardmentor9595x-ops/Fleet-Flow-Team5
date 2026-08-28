@@ -14,13 +14,16 @@ import { toast } from "react-toastify";
 const ROUTE_TYPE_COLORS = {
   fastest: "#4F46E5",
   shortest: "#0D9488",
+  other: "#8B5CF6",
   traffic_avoidance: "#D97706",
   fuel_efficient: "#059669",
 };
 
 const Trips = () => {
   const { user } = useAuth();
-  const canManage = ["Admin", "FleetManager", "Dispatcher"].includes(user?.role);
+  const canScheduleTrip = ["Admin", "FleetManager"].includes(user?.role);
+  const canOptimize = ["Admin", "FleetManager", "Dispatcher"].includes(user?.role);
+  const canExecuteTrip = user?.role !== "Dispatcher"; // Driver, FleetManager, Admin
 
   const [trips, setTrips] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -91,7 +94,11 @@ const Trips = () => {
             Trips & Route Optimization
           </h1>
           <p style={{ color: "#475569", fontSize: "13px", margin: 0 }}>
-            Schedule dispatches, optimize routes, and manage trip lifecycles
+            {user?.role === "Driver"
+              ? "Start and complete your assigned trips"
+              : user?.role === "Dispatcher"
+              ? "Monitor active trips and calculate route optimizations"
+              : "Schedule dispatches, optimize routes, and manage trip lifecycles"}
           </p>
         </div>
 
@@ -106,28 +113,28 @@ const Trips = () => {
             Refresh
           </button>
 
-          {canManage && (
-            <>
-              <button onClick={() => setShowOptimizerModal(true)} style={{
-                padding: "9px 14px", borderRadius: "10px",
-                background: "#F8FAFC", border: "1px solid #0D9488",
-                color: "#0D9488", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
-                fontSize: "12px", fontWeight: 700, boxShadow: "0 2px 6px rgba(13,148,136,0.1)"
-              }}>
-                <Zap size={14} />
-                Optimize Routes
-              </button>
+          {canOptimize && (
+            <button onClick={() => setShowOptimizerModal(true)} style={{
+              padding: "9px 14px", borderRadius: "10px",
+              background: "#F8FAFC", border: "1px solid #0D9488",
+              color: "#0D9488", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px",
+              fontSize: "12px", fontWeight: 700, boxShadow: "0 2px 6px rgba(13,148,136,0.1)"
+            }}>
+              <Zap size={14} />
+              Optimize Routes
+            </button>
+          )}
 
-              <button onClick={() => setShowScheduleModal(true)} style={{
-                padding: "9px 18px", borderRadius: "10px",
-                background: "#0D9488", border: "none", color: "white", cursor: "pointer",
-                display: "flex", alignItems: "center", gap: "7px", fontSize: "13px", fontWeight: 700,
-                boxShadow: "0 4px 14px rgba(13,148,136,0.25)"
-              }}>
-                <Plus size={15} />
-                Schedule Trip
-              </button>
-            </>
+          {canScheduleTrip && (
+            <button onClick={() => setShowScheduleModal(true)} style={{
+              padding: "9px 18px", borderRadius: "10px",
+              background: "#0D9488", border: "none", color: "white", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: "7px", fontSize: "13px", fontWeight: 700,
+              boxShadow: "0 4px 14px rgba(13,148,136,0.25)"
+            }}>
+              <Plus size={15} />
+              Schedule Trip
+            </button>
           )}
         </div>
       </div>
@@ -169,7 +176,7 @@ const Trips = () => {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
-                {["Route", "Vehicle", "Driver", "Strategy", "Distance", "Status", "Actions"].map((h) => (
+                {["Route", "Vehicle", "Driver", "Strategy", "Distance", "Est. Arrival / Duration", "Status", "Actions"].map((h) => (
                   <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: "10px", fontWeight: 800, color: "#475569", textTransform: "uppercase" }}>
                     {h}
                   </th>
@@ -206,6 +213,14 @@ const Trips = () => {
                       {t.distance ? `${t.distance} km` : "—"}
                     </td>
                     <td style={{ padding: "12px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                        <Clock size={12} color="#0D9488" />
+                        <span style={{ fontSize: "12px", fontWeight: 700, color: "#0F172A" }}>
+                          {t.estimated_duration ? `${Math.round(t.estimated_duration)} mins` : "Calculating..."}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
                       <span style={{
                         padding: "3px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 700,
                         background: t.status === "Completed" ? "rgba(5,150,105,0.1)" : t.status === "In Progress" ? "rgba(13,148,136,0.1)" : "rgba(79,70,229,0.1)",
@@ -217,7 +232,7 @@ const Trips = () => {
                     </td>
                     <td style={{ padding: "12px 16px" }}>
                       <div style={{ display: "flex", gap: "6px" }}>
-                        {t.status === "Scheduled" && (
+                        {canExecuteTrip && t.status === "Scheduled" && (
                           <button
                             onClick={() => handleStartTrip(t.trip_id)}
                             style={{ padding: "6px 12px", borderRadius: "6px", background: "#0D9488", border: "none", color: "white", fontSize: "11px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
@@ -226,13 +241,19 @@ const Trips = () => {
                           </button>
                         )}
 
-                        {t.status === "In Progress" && (
+                        {canExecuteTrip && t.status === "In Progress" && (
                           <button
                             onClick={() => handleEndTrip(t.trip_id)}
                             style={{ padding: "6px 12px", borderRadius: "6px", background: "#059669", border: "none", color: "white", fontSize: "11px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}
                           >
                             <CheckCircle2 size={11} /> Complete
                           </button>
+                        )}
+
+                        {!canExecuteTrip && t.status !== "Completed" && (
+                          <span style={{ fontSize: "11px", color: "#64748B", fontStyle: "italic" }}>
+                            Live Route Active
+                          </span>
                         )}
                       </div>
                     </td>
