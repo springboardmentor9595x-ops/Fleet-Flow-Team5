@@ -14,6 +14,7 @@ import Trips from "./pages/Trips";
 import Maintenance from "./pages/Maintenance";
 import TrackingMap from "./pages/TrackingMap";
 import Reports from "./pages/Reports";
+import Attendance from "./pages/Attendance";
 import VerifyEmail from "./pages/VerifyEmail";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -65,6 +66,7 @@ function App() {
             <Route path="/shipments/:id" element={<ShipmentDetail />} />
             <Route path="/vehicles" element={<Vehicles />} />
             <Route path="/drivers" element={<Drivers />} />
+            <Route path="/attendance" element={<Attendance />} />
             <Route path="/trips" element={<Trips />} />
             <Route path="/maintenance" element={<Maintenance />} />
             <Route path="/reports" element={<Reports />} />

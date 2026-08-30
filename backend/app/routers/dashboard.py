@@ -1,4 +1,4 @@
-﻿"""
+"""
 Dashboard Analytics Router
 Provides role-tailored metrics and widgets for:
 1. Fleet Dashboard (Admin, FleetManager)
@@ -454,9 +454,21 @@ def get_driver_personal_dashboard(
     month_attendance = db.query(Attendance).filter(
         Attendance.driver_id == driver.driver_id,
         Attendance.date >= first_of_month,
-    ).all()
+    ).order_by(Attendance.date.desc()).all()
     present_days = len([a for a in month_attendance if a.status == "Present"])
+    leave_days = len([a for a in month_attendance if a.status == "Leave"])
+    absent_days = len([a for a in month_attendance if a.status == "Absent"])
     working_days = max(len(month_attendance), 22)
+
+    recent_attendance = [
+        {
+            "attendance_id": str(a.attendance_id),
+            "date": str(a.date),
+            "status": a.status,
+            "remarks": a.remarks,
+        }
+        for a in month_attendance[:7]
+    ]
 
     return {
         "driver_name": current_user.full_name,
@@ -473,9 +485,12 @@ def get_driver_personal_dashboard(
         },
         "my_attendance": {
             "present_days": present_days,
+            "leave_days": leave_days,
+            "absent_days": absent_days,
             "working_days": working_days,
             "attendance_rate_pct": round((present_days / max(working_days, 1)) * 100, 1),
             "month_label": today.strftime("%B %Y"),
+            "recent_records": recent_attendance,
         },
         "recent_trips": recent_trips,
     }

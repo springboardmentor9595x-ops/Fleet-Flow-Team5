@@ -3,6 +3,8 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import fleetApi from "../api/fleet";
 import NotificationBell from "./NotificationBell";
+import ChangePasswordModal from "./ChangePasswordModal";
+import UserManagementModal from "./UserManagementModal";
 import {
   Truck,
   LayoutDashboard,
@@ -18,7 +20,10 @@ import {
   FileText,
   ToggleLeft,
   ToggleRight,
-  Activity
+  Activity,
+  CalendarCheck,
+  KeyRound,
+  UserCog
 } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -29,7 +34,6 @@ const navItems = [
     icon: LayoutDashboard,
     roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
   },
-
   {
     to: "/shipments",
     label: "Shipments",
@@ -46,6 +50,12 @@ const navItems = [
     to: "/drivers",
     label: "Drivers Directory",
     icon: Users,
+    roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
+  },
+  {
+    to: "/attendance",
+    label: "Driver Attendance",
+    icon: CalendarCheck,
     roles: ["Admin", "FleetManager", "Dispatcher", "Driver"],
   },
   {
@@ -92,6 +102,8 @@ const Sidebar = () => {
 
   const [driverStatus, setDriverStatus] = useState("Active");
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [showChangePassModal, setShowChangePassModal] = useState(false);
+  const [showUserMgmtModal, setShowUserMgmtModal] = useState(false);
 
   useEffect(() => {
     if (user?.role === "Driver") {
@@ -157,7 +169,7 @@ const Sidebar = () => {
             <p style={{ color: "#0D9488", fontSize: "9px", margin: 0, fontFamily: "monospace", fontWeight: 700 }}>TEAL MODE v2.0</p>
           </div>
         </div>
-        <NotificationBell />
+        <NotificationBell align="left" />
       </div>
 
 
@@ -196,7 +208,38 @@ const Sidebar = () => {
             }}>
               {user?.role}
             </span>
+
+            <button
+              onClick={() => setShowChangePassModal(true)}
+              title="Change Password"
+              style={{
+                background: "transparent", border: "none", color: "#64748B",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: "3px",
+                fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "4px"
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#0D9488"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "#64748B"; }}
+            >
+              <KeyRound size={12} /> Key
+            </button>
           </div>
+
+          {/* Admin User Management Button */}
+          {user?.role === "Admin" && (
+            <button
+              onClick={() => setShowUserMgmtModal(true)}
+              style={{
+                width: "100%", marginTop: "8px", padding: "6px 10px",
+                borderRadius: "6px", border: "1px solid rgba(217,119,6,0.3)",
+                background: "rgba(217,119,6,0.08)", color: "#B45309",
+                fontSize: "11px", fontWeight: 700, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <UserCog size={13} /> Manage User Roles
+            </button>
+          )}
 
           {/* Driver Duty Status Toggle inside Sidebar User Card */}
           {user?.role === "Driver" && (
@@ -315,6 +358,16 @@ const Sidebar = () => {
           <span>Logout</span>
         </button>
       </div>
+
+      {/* Modals */}
+      <ChangePasswordModal
+        isOpen={showChangePassModal}
+        onClose={() => setShowChangePassModal(false)}
+      />
+      <UserManagementModal
+        isOpen={showUserMgmtModal}
+        onClose={() => setShowUserMgmtModal(false)}
+      />
     </aside>
   );
 };

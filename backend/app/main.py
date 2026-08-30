@@ -2,7 +2,7 @@ from typing import Dict
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, shipments, trips, vehicles, drivers, gps, maintenance, notifications, reports, dashboard
+from app.routers import auth, shipments, trips, vehicles, drivers, gps, maintenance, notifications, reports, dashboard, attendance
 from app.websockets.tracking import handle_tracking_websocket
 
 app = FastAPI(
@@ -26,6 +26,7 @@ app.include_router(shipments.router, prefix="/shipments", tags=["Shipments"])
 app.include_router(trips.router, prefix="/trips", tags=["Trips & Route Optimization"])
 app.include_router(vehicles.router, prefix="/vehicles", tags=["Vehicles"])
 app.include_router(drivers.router, prefix="/drivers", tags=["Drivers"])
+app.include_router(attendance.router, prefix="/attendance", tags=["Attendance & Leaves"])
 app.include_router(gps.router, prefix="/gps", tags=["GPS Tracking"])
 app.include_router(maintenance.router, prefix="/maintenance", tags=["Fleet Maintenance & Fuel"])
 app.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])

@@ -1,9 +1,9 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Bell, Check, CheckCheck, X, AlertTriangle, Wrench, Package, Info, Clock } from "lucide-react";
 import notificationsApi from "../api/notifications";
 import { toast } from "react-toastify";
 
-const NotificationBell = () => {
+const NotificationBell = ({ align = "right" }) => {
   const [notifications, setNotifications] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -166,14 +166,15 @@ const NotificationBell = () => {
           style={{
             position: "absolute",
             top: "44px",
-            right: 0,
+            ...(align === "left" ? { left: "0px" } : { right: "0px" }),
             width: "360px",
+            maxWidth: "calc(100vw - 20px)",
             maxHeight: "480px",
             background: "#FFFFFF",
             border: "1px solid #E2E8F0",
             borderRadius: "16px",
-            boxShadow: "0 20px 40px rgba(15,23,42,0.15)",
-            zIndex: 9999,
+            boxShadow: "0 20px 45px rgba(15,23,42,0.18)",
+            zIndex: 99999,
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",

@@ -242,6 +242,10 @@ def get_driver_performance_report(
 
         d_attendance = [a for a in attendance_records if a.driver_id == d.driver_id]
         present_days = len([a for a in d_attendance if a.status == "Present"])
+        leave_days = len([a for a in d_attendance if a.status == "Leave"])
+        absent_days = len([a for a in d_attendance if a.status == "Absent"])
+        total_att = len(d_attendance)
+        att_rate = round((present_days / max(total_att, 1)) * 100, 1) if total_att > 0 else 100.0
 
         trip_count = len(d_trips)
         completed_count = len(completed)
@@ -262,6 +266,9 @@ def get_driver_performance_report(
             "on_time_rate_pct": on_time_rate,
             "total_distance_km": round(distance, 1),
             "attendance_present_days": present_days,
+            "attendance_leave_days": leave_days,
+            "attendance_absent_days": absent_days,
+            "attendance_rate_pct": att_rate,
         })
 
     rows.sort(key=lambda x: x["total_trips"], reverse=True)
@@ -441,8 +448,8 @@ def export_report_pdf(
         keys = ["registration_number", "vehicle_type", "refill_count", "total_liters", "total_cost", "avg_cost_per_liter"]
     elif report_type == "driver-performance":
         data = get_driver_performance_report(start_date, end_date, db, current_user)
-        headers = ["Driver Name", "Status", "Trips", "Completed", "On-Time %", "Distance (km)"]
-        keys = ["driver_name", "status", "total_trips", "completed_trips", "on_time_rate_pct", "total_distance_km"]
+        headers = ["Driver Name", "Status", "Trips", "Completed", "On-Time %", "Distance (km)", "Present Days", "Attendance %"]
+        keys = ["driver_name", "status", "total_trips", "completed_trips", "on_time_rate_pct", "total_distance_km", "attendance_present_days", "attendance_rate_pct"]
     elif report_type == "delivery-performance":
         data = get_delivery_performance_report(start_date, end_date, db, current_user)
         headers = ["Tracking #", "Customer", "Source", "Destination", "Status", "Weight (kg)"]
@@ -573,8 +580,8 @@ def export_report_excel(
         keys = ["registration_number", "vehicle_type", "refill_count", "total_liters", "total_cost", "avg_cost_per_liter", "latest_odometer"]
     elif report_type == "driver-performance":
         data = get_driver_performance_report(start_date, end_date, db, current_user)
-        headers = ["Driver Name", "Email", "License #", "Status", "Total Trips", "Completed Trips", "Delayed Trips", "On-Time %", "Distance (km)", "Present Days"]
-        keys = ["driver_name", "email", "license_number", "status", "total_trips", "completed_trips", "delayed_trips", "on_time_rate_pct", "total_distance_km", "attendance_present_days"]
+        headers = ["Driver Name", "Email", "License #", "Status", "Total Trips", "Completed Trips", "Delayed Trips", "On-Time %", "Distance (km)", "Present Days", "Leave Days", "Absent Days", "Attendance Rate %"]
+        keys = ["driver_name", "email", "license_number", "status", "total_trips", "completed_trips", "delayed_trips", "on_time_rate_pct", "total_distance_km", "attendance_present_days", "attendance_leave_days", "attendance_absent_days", "attendance_rate_pct"]
     elif report_type == "delivery-performance":
         data = get_delivery_performance_report(start_date, end_date, db, current_user)
         headers = ["Tracking #", "Customer", "Source", "Destination", "Status", "Weight (kg)", "Expected Delivery", "Created At"]

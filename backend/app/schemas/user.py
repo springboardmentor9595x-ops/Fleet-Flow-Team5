@@ -1,11 +1,11 @@
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict
 from app.models.user import RoleEnum
 
 
 class UserCreate(BaseModel):
-    email: EmailStr
+    email: str
     password: str
     full_name: str
     phone: Optional[str] = None
@@ -14,7 +14,7 @@ class UserCreate(BaseModel):
 
 class UserOut(BaseModel):
     user_id: UUID
-    email: EmailStr
+    email: str
     full_name: str
     role: RoleEnum
     is_verified: bool = True
@@ -29,10 +29,10 @@ class Token(BaseModel):
 
 
 class VerifyOTPRequest(BaseModel):
-    email: EmailStr
+    email: str
     otp: str
 
 
 class ResendOTPRequest(BaseModel):
-    email: EmailStr
+    email: str
 

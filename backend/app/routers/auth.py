@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.schemas.user import UserCreate, UserOut, Token, VerifyOTPRequest, ResendOTPRequest
@@ -524,4 +524,202 @@ def delete_user(
     db.delete(user)
     db.commit()
     return None
+
+
+# ── Password Reset & Change Password ───────────────────────────────────────
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+def _send_password_reset_email_background(full_name: str, email: str, otp_code: str):
+    """Send 6-digit password reset OTP email via SMTP and log it."""
+    body_preview = f"Your FleetFlow password reset OTP code is {otp_code}. Valid for 10 minutes."
+    try:
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from app.config import settings
+
+        subject = f"FleetFlow — Password Reset OTP is {otp_code}"
+        body_text = (
+            f"Hello {full_name},\n\n"
+            f"We received a request to reset your FleetFlow password.\n"
+            f"Your 6-digit password reset OTP is:\n\n"
+            f"   {otp_code}\n\n"
+            f"This code is valid for 10 minutes. If you did not request a password reset, please secure your account immediately.\n\n"
+            f"— FleetFlow Logistics Security Team"
+        )
+        body_html = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #E2E8F0; border-radius: 16px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #0F172A; margin: 0;">FleetFlow Security</h2>
+            <p style="color: #64748B; font-size: 13px; margin-top: 4px;">Password Reset Request</p>
+          </div>
+          <p style="color: #334155; font-size: 14px;">Hello <strong>{full_name}</strong>,</p>
+          <p style="color: #475569; font-size: 13px; line-height: 1.5;">
+            We received a request to reset your password. Use the 6-digit OTP below to proceed with setting a new password:
+          </p>
+          <div style="text-align: center; margin: 24px 0;">
+            <span style="display: inline-block; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #0D9488; background: #F0FDFA; padding: 14px 28px; border-radius: 12px; border: 1px dashed #0D9488;">
+              {otp_code}
+            </span>
+          </div>
+          <p style="color: #64748B; font-size: 12px; text-align: center;">
+            This OTP is valid for <strong>10 minutes</strong>. Do not share this code with anyone.
+          </p>
+          <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 20px 0;" />
+          <p style="color: #94A3B8; font-size: 11px; text-align: center;">
+            FleetFlow Intelligent Logistics Platform
+          </p>
+        </div>
+        """
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = getattr(settings, "EMAILS_FROM", "noreply@fleetflow.com")
+        msg["To"] = email
+
+        msg.attach(MIMEText(body_text, "plain"))
+        msg.attach(MIMEText(body_html, "html"))
+
+        with smtplib.SMTP(
+            getattr(settings, "SMTP_HOST", "smtp.gmail.com"),
+            int(getattr(settings, "SMTP_PORT", 587)),
+        ) as server:
+            server.starttls()
+            smtp_user = getattr(settings, "SMTP_USER", "")
+            smtp_pass = getattr(settings, "SMTP_PASSWORD", "")
+            if smtp_user and smtp_pass:
+                server.login(smtp_user, smtp_pass)
+            server.sendmail(msg["From"], [email], msg.as_string())
+    except Exception as exc:
+        print(f"[RESET OTP EMAIL] Send failed for {email}: {exc}")
+    finally:
+        _append_email_log(
+            recipient=email,
+            recipient_name=full_name,
+            role="User",
+            subject=f"FleetFlow — Password Reset OTP is {otp_code}",
+            body_preview=body_preview,
+            added_by_admin=False,
+        )
+
+
+@router.post("/forgot-password")
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Initiate password reset: send 6-digit OTP code to user's email.
+    """
+    user = get_user_by_email(db, payload.email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email address.",
+        )
+
+    otp = _generate_otp()
+    user.otp_code = otp
+    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+    db.commit()
+
+    background_tasks.add_task(
+        _send_password_reset_email_background,
+        full_name=user.full_name,
+        email=user.email,
+        otp_code=otp,
+    )
+    return {
+        "message": f"Password reset OTP code has been dispatched to {user.email}.",
+        "email": user.email,
+    }
+
+
+@router.post("/reset-password")
+def reset_password(
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Verify OTP and update user's password.
+    """
+    user = get_user_by_email(db, payload.email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email address.",
+        )
+
+    if not user.otp_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active password reset request found. Please request a new OTP.",
+        )
+
+    if user.otp_expires_at and datetime.utcnow() > user.otp_expires_at:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password reset OTP has expired. Please request a new OTP.",
+        )
+
+    if str(user.otp_code).strip() != str(payload.otp).strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect OTP code. Please enter the valid code sent to your email.",
+        )
+
+    if len(payload.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 6 characters.",
+        )
+
+    user.password = hash_password(payload.new_password)
+    user.otp_code = None
+    user.otp_expires_at = None
+    user.is_verified = True
+    db.commit()
+
+    return {"message": "Password reset successfully! You can now sign in with your new password."}
+
+
+@router.post("/change-password")
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Allow an authenticated user to update their password.
+    """
+    if not verify_password(payload.current_password, current_user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+
+    if len(payload.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 6 characters.",
+        )
+
+    current_user.password = hash_password(payload.new_password)
+    db.commit()
+
+    return {"message": "Your password has been changed successfully."}
 
