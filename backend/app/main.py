@@ -87,6 +87,10 @@ def startup_db_init():
                 db.add_all([admin_user, manager_user, dispatcher_user, driver_user])
                 db.commit()
                 print("[Startup] Initial role accounts seeded successfully.")
+            
+            # Ensure demo fleet (vehicles, drivers, shipments, trips, GPS) is populated
+            from app.core.seed import seed_demo_fleet_data
+            seed_demo_fleet_data(db)
         finally:
             db.close()
     except Exception as e:
@@ -141,3 +145,17 @@ def health_db():
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
+
+@app.get("/admin/seed-demo-fleet", summary="Seed Demo Fleet Data")
+@app.post("/admin/seed-demo-fleet", summary="Seed Demo Fleet Data")
+def seed_demo_fleet():
+    db = SessionLocal()
+    try:
+        from app.core.seed import seed_demo_fleet_data
+        result = seed_demo_fleet_data(db)
+        return {"message": "Demo fleet data successfully processed", "result": result}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+    finally:
+        db.close()
