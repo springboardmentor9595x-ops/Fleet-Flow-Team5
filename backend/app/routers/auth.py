@@ -265,10 +265,10 @@ def verify_otp(
 
     submitted_otp = str(payload.otp).strip()
     actual_otp = str(user.otp_code).strip() if user.otp_code else ""
-    if submitted_otp != actual_otp and submitted_otp != "123456":
+    if submitted_otp != actual_otp:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect OTP code. Please verify the code sent to your email (or use test OTP 123456).",
+            detail="Incorrect OTP code. Please check the code sent to your email.",
         )
 
     # Verification successful
@@ -1018,10 +1018,10 @@ def reset_password(
 
     submitted_otp = str(payload.otp).strip()
     actual_otp = str(user.otp_code).strip() if user.otp_code else ""
-    if submitted_otp != actual_otp and submitted_otp != "123456":
+    if submitted_otp != actual_otp:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect OTP code. Please enter the valid code sent to your email (or use test OTP 123456).",
+            detail="Incorrect OTP code. Please check the code sent to your email.",
         )
 
     if len(payload.new_password) < 6:
