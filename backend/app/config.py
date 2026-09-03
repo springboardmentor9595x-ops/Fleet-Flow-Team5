@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     EMAILS_FROM: str = "noreply@fleetflow.com"
     EMAILS_FROM_NAME: str = "FleetFlow Admin"
 
+    # HTTP Email APIs (Work on cloud hosts like Render where SMTP ports are blocked)
+    RESEND_API_KEY: str = ""
+    RESEND_FROM: str = "FleetFlow <onboarding@resend.dev>"
+    BREVO_API_KEY: str = ""
+
     # Redis (optional)
     REDIS_URL: str = "redis://localhost:6379"
 

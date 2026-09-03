@@ -42,6 +42,108 @@ def get_email_logs() -> List[dict]:
     return list(reversed(_email_log))
 
 
+def dispatch_email(
+    to_email: str,
+    subject: str,
+    body_text: str,
+    body_html: str,
+    sender_name: str = "FleetFlow Logistics",
+) -> bool:
+    """
+    Dispatches email via:
+    1. Resend HTTP API (Port 443 HTTPS - Works on Render, AWS, everywhere)
+    2. Brevo HTTP API (Port 443 HTTPS)
+    3. Fallback to standard SMTP (Port 587/465)
+    """
+    import httpx
+
+    # 1. Resend HTTP API
+    resend_key = getattr(settings, "RESEND_API_KEY", "").strip()
+    if resend_key:
+        try:
+            from_addr = getattr(settings, "RESEND_FROM", "onboarding@resend.dev")
+            if not from_addr.strip():
+                from_addr = "onboarding@resend.dev"
+            res = httpx.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {resend_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "from": from_addr,
+                    "to": [to_email],
+                    "subject": subject,
+                    "html": body_html,
+                    "text": body_text,
+                },
+                timeout=10.0,
+            )
+            if res.status_code in (200, 201):
+                print(f"[EMAIL RESEND] Delivered successfully to {to_email}")
+                return True
+            else:
+                print(f"[EMAIL RESEND] Response status {res.status_code}: {res.text}")
+        except Exception as exc:
+            print(f"[EMAIL RESEND] Error sending to {to_email}: {exc}")
+
+    # 2. Brevo HTTP API
+    brevo_key = getattr(settings, "BREVO_API_KEY", "").strip()
+    if brevo_key:
+        try:
+            sender_email = getattr(settings, "EMAILS_FROM", "noreply@fleetflow.com")
+            res = httpx.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={
+                    "api-key": brevo_key,
+                    "Content-Type": "application/json",
+                    "accept": "application/json",
+                },
+                json={
+                    "sender": {"name": sender_name, "email": sender_email},
+                    "to": [{"email": to_email}],
+                    "subject": subject,
+                    "htmlContent": body_html,
+                    "textContent": body_text,
+                },
+                timeout=10.0,
+            )
+            if res.status_code in (200, 201):
+                print(f"[EMAIL BREVO] Delivered successfully to {to_email}")
+                return True
+            else:
+                print(f"[EMAIL BREVO] Response status {res.status_code}: {res.text}")
+        except Exception as exc:
+            print(f"[EMAIL BREVO] Error sending to {to_email}: {exc}")
+
+    # 3. Fallback to standard SMTP
+    smtp_host = getattr(settings, "SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(getattr(settings, "SMTP_PORT", 587))
+    smtp_user = getattr(settings, "SMTP_USER", "")
+    smtp_pass = getattr(settings, "SMTP_PASSWORD", "")
+
+    if smtp_user and smtp_pass:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = f"{sender_name} <{getattr(settings, 'EMAILS_FROM', smtp_user)}>"
+            msg["To"] = to_email
+            msg.attach(MIMEText(body_text, "plain"))
+            msg.attach(MIMEText(body_html, "html"))
+
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.sendmail(msg["From"], [to_email], msg.as_string())
+            print(f"[EMAIL SMTP] Delivered successfully to {to_email}")
+            return True
+        except Exception as exc:
+            print(f"[EMAIL SMTP] SMTP failed for {to_email}: {exc}")
+
+    print(f"[EMAIL WARNING] No active HTTP API key (RESEND_API_KEY/BREVO_API_KEY) and SMTP failed for {to_email}.")
+    return False
+
+
 def send_notification_email(
     recipient_email: str,
     recipient_name: str,
@@ -97,26 +199,13 @@ def send_notification_email(
     )
 
     def _deliver():
-        try:
-            smtp_host = getattr(settings, "SMTP_HOST", "smtp.gmail.com")
-            smtp_port = int(getattr(settings, "SMTP_PORT", 587))
-            smtp_user = getattr(settings, "SMTP_USER", "")
-            smtp_pass = getattr(settings, "SMTP_PASSWORD", "")
-
-            if smtp_user and smtp_pass:
-                msg = MIMEMultipart("alternative")
-                msg["Subject"] = subject
-                msg["From"] = getattr(settings, "EMAILS_FROM", "noreply@fleetflow.com")
-                msg["To"] = recipient_email
-                msg.attach(MIMEText(body_text, "plain"))
-                msg.attach(MIMEText(body_html, "html"))
-
-                with smtplib.SMTP(smtp_host, smtp_port, timeout=4) as server:
-                    server.starttls()
-                    server.login(smtp_user, smtp_pass)
-                    server.sendmail(msg["From"], [recipient_email], msg.as_string())
-        except Exception as exc:
-            print(f"[NOTIFICATION EMAIL] SMTP dispatch background error: {exc}")
+        dispatch_email(
+            to_email=recipient_email,
+            subject=subject,
+            body_text=body_text,
+            body_html=body_html,
+            sender_name="FleetFlow Logistics",
+        )
 
     import threading
     t = threading.Thread(target=_deliver, daemon=True)
@@ -235,26 +324,13 @@ def send_role_change_email(
     )
 
     def _deliver():
-        try:
-            smtp_host = getattr(settings, "SMTP_HOST", "smtp.gmail.com")
-            smtp_port = int(getattr(settings, "SMTP_PORT", 587))
-            smtp_user = getattr(settings, "SMTP_USER", "")
-            smtp_pass = getattr(settings, "SMTP_PASSWORD", "")
-
-            if smtp_user and smtp_pass:
-                msg = MIMEMultipart("alternative")
-                msg["Subject"] = subject
-                msg["From"] = getattr(settings, "EMAILS_FROM", "noreply@fleetflow.com")
-                msg["To"] = recipient_email
-                msg.attach(MIMEText(body_text, "plain"))
-                msg.attach(MIMEText(body_html, "html"))
-
-                with smtplib.SMTP(smtp_host, smtp_port, timeout=4) as server:
-                    server.starttls()
-                    server.login(smtp_user, smtp_pass)
-                    server.sendmail(msg["From"], [recipient_email], msg.as_string())
-        except Exception as exc:
-            print(f"[ROLE CHANGE EMAIL] SMTP dispatch error for {recipient_email}: {exc}")
+        dispatch_email(
+            to_email=recipient_email,
+            subject=subject,
+            body_text=body_text,
+            body_html=body_html,
+            sender_name="FleetFlow Governance",
+        )
 
     import threading
     t = threading.Thread(target=_deliver, daemon=True)
@@ -332,26 +408,13 @@ def send_account_deletion_email(
     )
 
     def _deliver():
-        try:
-            smtp_host = getattr(settings, "SMTP_HOST", "smtp.gmail.com")
-            smtp_port = int(getattr(settings, "SMTP_PORT", 587))
-            smtp_user = getattr(settings, "SMTP_USER", "")
-            smtp_pass = getattr(settings, "SMTP_PASSWORD", "")
-
-            if smtp_user and smtp_pass:
-                msg = MIMEMultipart("alternative")
-                msg["Subject"] = subject
-                msg["From"] = getattr(settings, "EMAILS_FROM", "noreply@fleetflow.com")
-                msg["To"] = recipient_email
-                msg.attach(MIMEText(body_text, "plain"))
-                msg.attach(MIMEText(body_html, "html"))
-
-                with smtplib.SMTP(smtp_host, smtp_port, timeout=4) as server:
-                    server.starttls()
-                    server.login(smtp_user, smtp_pass)
-                    server.sendmail(msg["From"], [recipient_email], msg.as_string())
-        except Exception as exc:
-            print(f"[ACCOUNT DELETION EMAIL] SMTP dispatch error for {recipient_email}: {exc}")
+        dispatch_email(
+            to_email=recipient_email,
+            subject=subject,
+            body_text=body_text,
+            body_html=body_html,
+            sender_name="FleetFlow Governance",
+        )
 
     import threading
     t = threading.Thread(target=_deliver, daemon=True)
