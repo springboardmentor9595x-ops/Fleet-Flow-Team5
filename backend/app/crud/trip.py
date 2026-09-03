@@ -14,6 +14,7 @@ from app.models.trip import Trip
 from app.models.shipment import Shipment, ShipmentStatusEnum
 from app.models.vehicle import Vehicle
 from app.models.driver import Driver
+from app.models.user import User
 from app.schemas.trip import TripCreate
 from app.crud.shipment import update_shipment_status
 from app.core.route_optimization import (

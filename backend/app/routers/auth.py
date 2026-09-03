@@ -10,21 +10,32 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
-from app.schemas.user import UserCreate, UserOut, Token, VerifyOTPRequest, ResendOTPRequest
+from app.schemas.user import (
+    UserCreate,
+    UserOut,
+    UserProfileUpdate,
+    AdminUserUpdate,
+    Token,
+    VerifyOTPRequest,
+    ResendOTPRequest,
+)
 from app.crud.user import get_user_by_email, create_user
 from app.core.security import verify_password, create_access_token, hash_password
 
 from app.core.deps import get_current_user
 from app.models.user import User, RoleEnum
 from app.models.driver import Driver
+from app.models.notification import Notification
+from app.core.email import (
+    append_email_log,
+    get_email_logs as core_get_email_logs,
+    send_role_change_email,
+    send_account_deletion_email,
+)
 
 router = APIRouter()
 
-# ── In-memory email audit log (session-scoped) ─────────────────────────────
-_email_log: List[dict] = []
-_log_counter = 0
-
-
+# ── In-memory email audit log delegation ─────────────────────────────
 def _append_email_log(
     recipient: str,
     recipient_name: str,
@@ -33,19 +44,15 @@ def _append_email_log(
     body_preview: str,
     added_by_admin: bool = False,
 ):
-    global _log_counter
-    _log_counter += 1
-    _email_log.append({
-        "id": _log_counter,
-        "recipient": recipient,
-        "recipient_name": recipient_name,
-        "role": role,
-        "subject": subject,
-        "body_preview": body_preview,
-        "status": "Sent",
-        "added_by_admin": added_by_admin,
-        "sent_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-    })
+    append_email_log(
+        recipient=recipient,
+        recipient_name=recipient_name,
+        role=role,
+        subject=subject,
+        body_preview=body_preview,
+        added_by_admin=added_by_admin,
+        status="Sent",
+    )
 
 
 def _generate_otp() -> str:
@@ -349,10 +356,16 @@ def login(
             detail="Invalid credentials",
         )
     if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified. Please verify using the OTP sent to your email to sign in.",
-        )
+        if user.otp_code:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Email not verified. Please verify using the OTP sent to your email to sign in.",
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account has been suspended by an Administrator. Please contact support.",
+            )
     token = create_access_token(data={"sub": user.email, "role": user.role.value if hasattr(user.role, "value") else str(user.role)})
     return {"access_token": token, "token_type": "bearer", "user": user}
 
@@ -361,6 +374,46 @@ def login(
 @router.get("/me", response_model=UserOut)
 def read_current_user(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.patch("/me", response_model=Token)
+def update_current_user_profile(
+    payload: UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Allow logged in user to update their full_name, email, and phone.
+    Strictly forbids self-changing role (role can only be changed by Admin).
+    """
+    # 1. Validate email if changing
+    if payload.email and payload.email.strip().lower() != current_user.email.lower():
+        new_email = payload.email.strip().lower()
+        existing = db.query(User).filter(User.email == new_email).first()
+        if existing and existing.user_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Email '{new_email}' is already in use by another account.",
+            )
+        current_user.email = new_email
+
+    # 2. Update full name & phone
+    if payload.full_name is not None and payload.full_name.strip():
+        current_user.full_name = payload.full_name.strip()
+    if payload.phone is not None:
+        current_user.phone = payload.phone.strip()
+
+    db.commit()
+    db.refresh(current_user)
+
+    # Generate fresh JWT token with updated email/info
+    token = create_access_token(
+        data={
+            "sub": current_user.email,
+            "role": current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+        }
+    )
+    return {"access_token": token, "token_type": "bearer", "user": current_user}
 
 
 # ── Admin: Add User ──────────────────────────────────────────────────────────
@@ -445,7 +498,7 @@ def get_email_logs(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only Admin can view email logs.",
         )
-    return list(reversed(_email_log))  # Most recent first
+    return core_get_email_logs()
 
 
 # ── Admin: User Management Endpoints ──────────────────────────────────────────
@@ -465,6 +518,73 @@ def list_users(
 
 class RoleUpdatePayload(BaseModel):
     role: str
+    reason: Optional[str] = None
+
+
+class BatchRoleUpdatePayload(BaseModel):
+    user_ids: List[str]
+    role: str
+    reason: Optional[str] = None
+
+
+class BatchDeletePayload(BaseModel):
+    user_ids: List[str]
+    reason: Optional[str] = None
+
+
+class StatusUpdatePayload(BaseModel):
+    is_verified: bool
+    reason: Optional[str] = None
+
+
+class BatchStatusUpdatePayload(BaseModel):
+    user_ids: List[str]
+    is_verified: bool
+    reason: Optional[str] = None
+
+
+def _safe_delete_single_user(db: Session, user: User, admin_name: str, reason: Optional[str] = None):
+    """
+    Safely unlinks foreign key dependencies across vehicles, trips, shipments,
+    leave requests, attendance, notifications, and driver records, then removes user.
+    """
+    from app.models.vehicle import Vehicle
+    from app.models.trip import Trip
+    from app.models.shipment import Shipment, ShipmentHistory
+    from app.models.leave_request import LeaveRequest
+    from app.models.attendance import Attendance
+
+    user_email = user.email
+    user_name = user.full_name or "FleetFlow User"
+
+    # 1. Nullify user references in history & review records
+    db.query(ShipmentHistory).filter(ShipmentHistory.changed_by_user_id == user.user_id).update({ShipmentHistory.changed_by_user_id: None})
+    db.query(LeaveRequest).filter(LeaveRequest.reviewed_by == user.user_id).update({LeaveRequest.reviewed_by: None})
+
+    # 2. Delete user's notification records
+    db.query(Notification).filter(Notification.user_id == user.user_id).delete(synchronize_session=False)
+
+    # 3. Handle linked driver record and dependent child tables
+    driver = db.query(Driver).filter(Driver.user_id == user.user_id).first()
+    if driver:
+        db.query(Vehicle).filter(Vehicle.assigned_driver == driver.driver_id).update({Vehicle.assigned_driver: None})
+        db.query(Trip).filter(Trip.driver_id == driver.driver_id).update({Trip.driver_id: None})
+        db.query(Shipment).filter(Shipment.driver_id == driver.driver_id).update({Shipment.driver_id: None})
+        db.query(Attendance).filter(Attendance.driver_id == driver.driver_id).delete(synchronize_session=False)
+        db.query(LeaveRequest).filter(LeaveRequest.driver_id == driver.driver_id).delete(synchronize_session=False)
+        db.delete(driver)
+
+    # 4. Delete user account
+    db.delete(user)
+    db.commit()
+
+    # 5. Dispatch email notification
+    send_account_deletion_email(
+        recipient_email=user_email,
+        recipient_name=user_name,
+        admin_name=admin_name,
+        reason=reason,
+    )
 
 
 @router.patch("/users/{user_id}/role", response_model=UserOut)
@@ -474,7 +594,7 @@ def update_user_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Admin-only endpoint to change a user's role."""
+    """Admin-only endpoint to change a user's role and dispatch an official email notification."""
     if current_user.role != RoleEnum.Admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -495,19 +615,255 @@ def update_user_role(
     if not new_role:
         raise HTTPException(status_code=400, detail=f"Invalid role '{payload.role}'.")
 
+    old_role_str = user.role.value if hasattr(user.role, "value") else str(user.role)
+    new_role_str = new_role.value if hasattr(new_role, "value") else str(new_role)
+
     user.role = new_role
+
+    # If transitioning to Driver, ensure Driver record exists
+    if new_role == RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == user.user_id).first()
+        if not driver:
+            driver = Driver(
+                user_id=user.user_id,
+                license_number=f"DL-{str(user.user_id)[:8].upper()}",
+                address="Operations Hub",
+                status="Active",
+                experience_years=2,
+            )
+            db.add(driver)
+        else:
+            driver.status = "Active"
+    elif old_role_str == "Driver" and new_role != RoleEnum.Driver:
+        driver = db.query(Driver).filter(Driver.user_id == user.user_id).first()
+        if driver:
+            driver.status = "Inactive"
+
+    # Add in-app notification for the user
+    notif_msg = f"Your FleetFlow role has been changed from '{old_role_str}' to '{new_role_str}' by Administrator {current_user.full_name}."
+    if payload.reason:
+        notif_msg += f" Note: {payload.reason}"
+
+    notif = Notification(
+        user_id=user.user_id,
+        title="Role & Privileges Updated",
+        message=notif_msg,
+        type="ROLE_CHANGE",
+        is_read=False,
+    )
+    db.add(notif)
+    db.commit()
+    db.refresh(user)
+
+    # Dispatch official Role Change email in background
+    send_role_change_email(
+        recipient_email=user.email,
+        recipient_name=user.full_name or "FleetFlow Member",
+        old_role=old_role_str,
+        new_role=new_role_str,
+        admin_name=current_user.full_name or "FleetFlow Administrator",
+        reason=payload.reason,
+    )
+
+    return user
+
+
+@router.post("/users/batch-role")
+def batch_update_user_roles(
+    payload: BatchRoleUpdatePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Admin-only endpoint to batch update roles for multiple accounts at once."""
+    if current_user.role != RoleEnum.Admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Admin can batch update user roles.",
+        )
+
+    role_map = {
+        "Admin": RoleEnum.Admin,
+        "FleetManager": RoleEnum.FleetManager,
+        "Dispatcher": RoleEnum.Dispatcher,
+        "Driver": RoleEnum.Driver,
+    }
+    new_role = role_map.get(payload.role)
+    if not new_role:
+        raise HTTPException(status_code=400, detail=f"Invalid role '{payload.role}'.")
+
+    updated_count = 0
+    for uid in payload.user_ids:
+        user = db.query(User).filter(User.user_id == uid).first()
+        if not user:
+            continue
+
+        old_role_str = user.role.value if hasattr(user.role, "value") else str(user.role)
+        new_role_str = new_role.value if hasattr(new_role, "value") else str(new_role)
+
+        user.role = new_role
+
+        if new_role == RoleEnum.Driver:
+            driver = db.query(Driver).filter(Driver.user_id == user.user_id).first()
+            if not driver:
+                driver = Driver(
+                    user_id=user.user_id,
+                    license_number=f"DL-{str(user.user_id)[:8].upper()}",
+                    address="Operations Hub",
+                    status="Active",
+                    experience_years=2,
+                )
+                db.add(driver)
+            else:
+                driver.status = "Active"
+        elif old_role_str == "Driver" and new_role != RoleEnum.Driver:
+            driver = db.query(Driver).filter(Driver.user_id == user.user_id).first()
+            if driver:
+                driver.status = "Inactive"
+
+        notif = Notification(
+            user_id=user.user_id,
+            title="Role & Privileges Updated",
+            message=f"Your FleetFlow role has been changed from '{old_role_str}' to '{new_role_str}' by Administrator {current_user.full_name}." + (f" Note: {payload.reason}" if payload.reason else ""),
+            type="ROLE_CHANGE",
+            is_read=False,
+        )
+        db.add(notif)
+        db.commit()
+
+        send_role_change_email(
+            recipient_email=user.email,
+            recipient_name=user.full_name or "FleetFlow Member",
+            old_role=old_role_str,
+            new_role=new_role_str,
+            admin_name=current_user.full_name or "FleetFlow Administrator",
+            reason=payload.reason,
+        )
+        updated_count += 1
+
+    return {"message": f"Successfully updated {updated_count} user(s) to '{payload.role}' and dispatched notification emails.", "updated_count": updated_count}
+
+
+@router.patch("/users/{user_id}/status", response_model=UserOut)
+def update_user_status(
+    user_id: str,
+    payload: StatusUpdatePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Admin-only endpoint to toggle a user's active/verified status (Account Suspension/Activation)."""
+    if current_user.role != RoleEnum.Admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Admin can modify user status.",
+        )
+
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    if user.user_id == current_user.user_id:
+        raise HTTPException(status_code=400, detail="Cannot suspend your own admin account.")
+
+    user.is_verified = payload.is_verified
     db.commit()
     db.refresh(user)
     return user
 
 
-@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(
-    user_id: str,
+@router.post("/users/batch-status")
+def batch_update_user_status(
+    payload: BatchStatusUpdatePayload,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Admin-only endpoint to permanently delete a user account."""
+    """Admin-only endpoint to batch suspend or activate multiple user accounts."""
+    if current_user.role != RoleEnum.Admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Admin can modify user status.",
+        )
+
+    updated_count = 0
+    action = "activated" if payload.is_verified else "suspended"
+    for uid in payload.user_ids:
+        u = db.query(User).filter(User.user_id == uid).first()
+        if not u or u.user_id == current_user.user_id:
+            continue
+        u.is_verified = payload.is_verified
+        updated_count += 1
+
+    db.commit()
+    return {"message": f"Successfully {action} {updated_count} user account(s).", "updated_count": updated_count}
+
+
+@router.patch("/users/{user_id}", response_model=UserOut)
+def admin_update_user(
+    user_id: str,
+    payload: AdminUserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Admin-only endpoint to update a user's full_name, email, phone, and optionally role.
+    Role changes are restricted to Admins and trigger notification email.
+    """
+    if current_user.role != RoleEnum.Admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Admin can modify other user accounts.",
+        )
+
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    # Check email uniqueness if email is changed
+    if payload.email and payload.email.strip().lower() != user.email.lower():
+        new_email = payload.email.strip().lower()
+        existing = db.query(User).filter(User.email == new_email).first()
+        if existing and existing.user_id != user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Email '{new_email}' is already in use by another account.",
+            )
+        user.email = new_email
+
+    if payload.full_name is not None and payload.full_name.strip():
+        user.full_name = payload.full_name.strip()
+
+    if payload.phone is not None:
+        user.phone = payload.phone.strip()
+
+    # If role changed, ensure only admin can change it, and send email notification
+    if payload.role and payload.role != user.role:
+        old_role = user.role.value if hasattr(user.role, "value") else str(user.role)
+        new_role = payload.role.value if hasattr(payload.role, "value") else str(payload.role)
+        user.role = payload.role
+        try:
+            send_role_change_email(
+                recipient_email=user.email,
+                recipient_name=user.full_name or "FleetFlow Member",
+                old_role=old_role,
+                new_role=new_role,
+                admin_name=current_user.full_name or "FleetFlow Administrator",
+                reason="Admin profile update",
+            )
+        except Exception:
+            pass
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: str,
+    reason: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Admin-only endpoint to safely and permanently delete a user account, cleaning up all FK constraints."""
     if current_user.role != RoleEnum.Admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -521,9 +877,33 @@ def delete_user(
     if user.user_id == current_user.user_id:
         raise HTTPException(status_code=400, detail="Cannot delete your own admin account.")
 
-    db.delete(user)
-    db.commit()
-    return None
+    deleted_name = user.full_name
+    _safe_delete_single_user(db, user, admin_name=current_user.full_name, reason=reason)
+    return {"status": "success", "message": f"User account for '{deleted_name}' successfully removed and decommission email dispatched."}
+
+
+@router.post("/users/batch-delete")
+def batch_delete_users(
+    payload: BatchDeletePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Admin-only endpoint to safely delete multiple user accounts at once."""
+    if current_user.role != RoleEnum.Admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Admin can batch delete user accounts.",
+        )
+
+    deleted_count = 0
+    for uid in payload.user_ids:
+        user = db.query(User).filter(User.user_id == uid).first()
+        if not user or user.user_id == current_user.user_id:
+            continue
+        _safe_delete_single_user(db, user, admin_name=current_user.full_name, reason=payload.reason)
+        deleted_count += 1
+
+    return {"status": "success", "message": f"Successfully decommissioned {deleted_count} account(s).", "deleted_count": deleted_count}
 
 
 # ── Password Reset & Change Password ───────────────────────────────────────

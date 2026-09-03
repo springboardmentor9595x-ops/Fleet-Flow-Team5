@@ -15,11 +15,12 @@ from app.models.gps_tracking import GPSTracking
 from app.core.security import hash_password
 from sqlalchemy import text
 
-def flush_database():
+def flush_database(mode="demo"):
     db = SessionLocal()
     print("Flushing database tables...")
     
     tables = [
+        "leave_requests",
         "shipment_history",
         "trips",
         "shipments",
@@ -41,6 +42,27 @@ def flush_database():
             except Exception as e:
                 print(f"[Notice] Could not truncate table {t}: {e}")
         conn.commit()
+
+    if mode == "clean":
+        print("\n[OK] All tables flushed. Database is completely empty.")
+        db.close()
+        return
+
+    if mode == "admin":
+        print("\nSeeding initial System Administrator account only...")
+        admin_user = User(
+            email="admin@fleetflow.com",
+            password=hash_password("admin123"),
+            full_name="System Administrator",
+            role=RoleEnum.Admin,
+            phone="+1-800-555-0101",
+            is_verified=True,
+        )
+        db.add(admin_user)
+        db.commit()
+        db.close()
+        print("[OK] Admin account created: admin@fleetflow.com / admin123")
+        return
 
     print("\nSeeding clean default role accounts...")
 
@@ -282,4 +304,9 @@ def flush_database():
     print("[OK] Full database re-seeding completed successfully!")
 
 if __name__ == "__main__":
-    flush_database()
+    mode = "demo"
+    if "--clean-only" in sys.argv:
+        mode = "clean"
+    elif "--admin-only" in sys.argv:
+        mode = "admin"
+    flush_database(mode=mode)

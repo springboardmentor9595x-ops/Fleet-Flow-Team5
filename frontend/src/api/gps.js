@@ -23,7 +23,18 @@ export const gpsApi = {
 
 // Create a WebSocket connection to the live tracking endpoint
 export function createTrackingWebSocket(vehicleId) {
-  const wsUrl = `ws://127.0.0.1:8000/ws/tracking/${vehicleId}`;
+  let wsBase = import.meta.env.VITE_WS_URL;
+  if (!wsBase) {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (apiUrl) {
+      wsBase = apiUrl.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://");
+    } else {
+      wsBase = "ws://127.0.0.1:8000";
+    }
+  }
+  // Strip trailing slash if present
+  wsBase = wsBase.replace(/\/+$/, "");
+  const wsUrl = `${wsBase}/ws/tracking/${vehicleId}`;
   return new WebSocket(wsUrl);
 }
 

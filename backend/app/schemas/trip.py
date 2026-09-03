@@ -25,8 +25,8 @@ class TripRecalculateRequest(BaseModel):
 
 class TripOut(BaseModel):
     trip_id: UUID
-    vehicle_id: UUID
-    driver_id: UUID
+    vehicle_id: Optional[UUID] = None
+    driver_id: Optional[UUID] = None
     shipment_id: Optional[UUID] = None
     start_location: str
     destination: str

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { fleetApi } from "../api/fleet";
 import tripsApi from "../api/trips";
+import shipmentsApi from "../api/shipments";
 import { toast } from "react-toastify";
 import {
   X, Truck, User, Route, Zap, Clock, MapPin,
-  Navigation, CheckCircle2, AlertCircle, Fuel, RefreshCw,
+  Navigation, CheckCircle2, AlertCircle, RefreshCw, Package
 } from "lucide-react";
 
 const ROUTE_TYPES = [
@@ -31,28 +32,60 @@ const ROUTE_TYPES = [
   },
 ];
 
-const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
-  const [vehicles, setVehicles] = useState([]);
-  const [drivers, setDrivers] = useState([]);
+const TripScheduleModal = ({
+  shipment = null,
+  availableShipments = [],
+  availableVehicles = [],
+  availableDrivers = [],
+  onClose,
+  onSuccess
+}) => {
+  const [vehicles, setVehicles] = useState(availableVehicles);
+  const [drivers, setDrivers] = useState(availableDrivers);
+  const [shipmentsList, setShipmentsList] = useState(availableShipments);
+
+  const [selectedShipmentId, setSelectedShipmentId] = useState(shipment?.shipment_id || "");
+  const [startLocation, setStartLocation] = useState(shipment?.source || "");
+  const [destination, setDestination] = useState(shipment?.destination || "");
   const [selectedVehicle, setSelectedVehicle] = useState(shipment?.vehicle_id || "");
   const [selectedDriver, setSelectedDriver] = useState(shipment?.driver_id || "");
-  const [routeType, setRouteType] = useState("fastest");
+  const [routeType, setRouteType] = useState(shipment?.planned_route_type || "fastest");
   const [loading, setLoading] = useState(false);
-  const [loadingOptions, setLoadingOptions] = useState(false);
-  const [routeInfo, setRouteInfo] = useState(null);
 
   useEffect(() => {
-    // Load available vehicles & drivers
+    // Load available vehicles, drivers & unassigned shipments if not provided
     Promise.all([
-      fleetApi.getVehicles("Available").catch(() => []),
-      fleetApi.getDrivers().catch(() => []),
-    ]).then(([v, d]) => {
+      vehicles.length > 0 ? Promise.resolve(vehicles) : fleetApi.getVehicles("Available").catch(() => []),
+      drivers.length > 0 ? Promise.resolve(drivers) : fleetApi.getDrivers().catch(() => []),
+      shipmentsList.length > 0 ? Promise.resolve(shipmentsList) : shipmentsApi.list(0, 100).then(res => res.shipments || []).catch(() => []),
+    ]).then(([v, d, s]) => {
       setVehicles(Array.isArray(v) ? v : []);
       setDrivers(Array.isArray(d) ? d : []);
+      setShipmentsList(Array.isArray(s) ? s : []);
     });
   }, []);
 
+  // Handle selecting a shipment from the dropdown
+  const handleSelectShipment = (shipId) => {
+    setSelectedShipmentId(shipId);
+    if (!shipId) {
+      return;
+    }
+    const found = shipmentsList.find((s) => String(s.shipment_id) === String(shipId));
+    if (found) {
+      setStartLocation(found.source || "");
+      setDestination(found.destination || "");
+      if (found.vehicle_id) setSelectedVehicle(found.vehicle_id);
+      if (found.driver_id) setSelectedDriver(found.driver_id);
+    }
+  };
+
   const handleSchedule = async () => {
+    const finalStart = startLocation.trim();
+    const finalDest = destination.trim();
+
+    if (!finalStart) { toast.error("Please provide a Start Location / Origin Hub."); return; }
+    if (!finalDest) { toast.error("Please provide a Destination."); return; }
     if (!selectedVehicle) { toast.error("Please select a vehicle."); return; }
     if (!selectedDriver)  { toast.error("Please select a driver.");  return; }
 
@@ -67,9 +100,9 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
       const newTrip = await tripsApi.schedule({
         vehicle_id: selectedVehicle,
         driver_id: selectedDriver,
-        shipment_id: shipment?.shipment_id,
-        start_location: shipment?.source,
-        destination: shipment?.destination,
+        shipment_id: selectedShipmentId || null,
+        start_location: finalStart,
+        destination: finalDest,
         planned_route_type: routeType,
       });
 
@@ -89,7 +122,7 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
     zIndex: 9999, padding: "20px",
   };
   const modalStyle = {
-    background: "#fff", borderRadius: "20px", width: "100%", maxWidth: "560px",
+    background: "#fff", borderRadius: "20px", width: "100%", maxWidth: "580px",
     boxShadow: "0 25px 80px rgba(15,23,42,0.25)", overflow: "hidden",
   };
 
@@ -97,16 +130,20 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
     <div style={overlayStyle} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div style={modalStyle}>
         {/* Header */}
-        <div style={{ padding: "24px 28px 20px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "linear-gradient(135deg, #0D9488, #0891B2)", color: "white" }}>
+        <div style={{ padding: "22px 28px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between", background: "linear-gradient(135deg, #0D9488, #0891B2)", color: "white" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Route size={20} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 900 }}>Schedule Trip</h2>
-              {shipment && (
-                <p style={{ margin: 0, fontSize: "12px", opacity: 0.85 }}>
+              <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 900 }}>Schedule &amp; Dispatch Trip</h2>
+              {shipment ? (
+                <p style={{ margin: 0, fontSize: "12px", opacity: 0.9 }}>
                   {shipment.tracking_number} · {shipment.source} → {shipment.destination}
+                </p>
+              ) : (
+                <p style={{ margin: 0, fontSize: "12px", opacity: 0.9 }}>
+                  Assign fleet vehicle, active driver, and route strategy
                 </p>
               )}
             </div>
@@ -116,7 +153,56 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
           </button>
         </div>
 
-        <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: "20px", maxHeight: "75vh", overflowY: "auto" }}>
+        <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: "18px", maxHeight: "75vh", overflowY: "auto" }}>
+          {/* Shipment selector (when opened from Trips page) */}
+          {!shipment && (
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <Package size={12} style={{ display: "inline", marginRight: "5px" }} /> Linked Shipment / Order (Optional)
+              </label>
+              <select
+                value={selectedShipmentId}
+                onChange={(e) => handleSelectShipment(e.target.value)}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "#F8FAFC", border: "1px solid #E2E8F0", color: "#0F172A", fontSize: "13px", fontWeight: 600, outline: "none", cursor: "pointer" }}
+              >
+                <option value="">-- Direct Dispatch / Custom Route (No Shipment) --</option>
+                {shipmentsList.map((s) => (
+                  <option key={s.shipment_id} value={s.shipment_id}>
+                    {s.tracking_number} · {s.source} → {s.destination} [{s.status}] ({s.customer_name || "Customer"})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Route Origin & Destination */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <MapPin size={11} style={{ display: "inline", marginRight: "4px", color: "#0D9488" }} /> Origin / Start
+              </label>
+              <input
+                type="text"
+                value={startLocation}
+                onChange={(e) => setStartLocation(e.target.value)}
+                placeholder="e.g. Mumbai Hub"
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "#F8FAFC", border: "1px solid #E2E8F0", color: "#0F172A", fontSize: "13px", fontWeight: 600, outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: "11px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <MapPin size={11} style={{ display: "inline", marginRight: "4px", color: "#4F46E5" }} /> Destination
+              </label>
+              <input
+                type="text"
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                placeholder="e.g. Chennai Depot"
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "10px", background: "#F8FAFC", border: "1px solid #E2E8F0", color: "#0F172A", fontSize: "13px", fontWeight: 600, outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+          </div>
+
           {/* Vehicle Select */}
           <div>
             <label style={{ fontSize: "11px", fontWeight: 800, color: "#475569", display: "block", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -169,6 +255,7 @@ const TripScheduleModal = ({ shipment, onClose, onSuccess }) => {
                 return (
                   <button
                     key={rt.key}
+                    type="button"
                     onClick={() => setRouteType(rt.key)}
                     style={{
                       padding: "12px 14px", borderRadius: "12px", cursor: "pointer",

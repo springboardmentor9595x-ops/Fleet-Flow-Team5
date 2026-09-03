@@ -1,15 +1,28 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import dashboardApi from "../api/dashboard";
+import api from "../api/axios";
 import EmailLogsModal from "../components/EmailLogsModal";
+import UserManagementModal from "../components/UserManagementModal";
 import NotificationBell from "../components/NotificationBell";
 import { toast } from "react-toastify";
 import { Link } from "react-router-dom";
 import {
   Truck, Package, Users, Wrench, Fuel, MapPin, Navigation, ShieldCheck,
   UserCheck, Mail, UserPlus, RefreshCw, AlertTriangle, CheckCircle2,
-  Clock, TrendingUp, BarChart2, Layers, X
+  Clock, TrendingUp, BarChart2, Layers, X, Search, Check, Trash2, Shield,
+  Edit3, CheckSquare, Square, Info, UserX, Pencil
 } from "lucide-react";
+
+const roleBadgeStyle = (role) => {
+  switch (role) {
+    case "Admin": return { bg: "rgba(217,119,6,0.12)", color: "#B45309", border: "rgba(217,119,6,0.3)" };
+    case "FleetManager": return { bg: "rgba(13,148,136,0.12)", color: "#0F766E", border: "rgba(13,148,136,0.3)" };
+    case "Driver": return { bg: "rgba(5,150,105,0.12)", color: "#047857", border: "rgba(5,150,105,0.3)" };
+    case "Dispatcher": return { bg: "rgba(79,70,229,0.12)", color: "#4338CA", border: "rgba(79,70,229,0.3)" };
+    default: return { bg: "rgba(100,116,139,0.1)", color: "#475569", border: "rgba(100,116,139,0.2)" };
+  }
+};
 
 const Dashboard = () => {
   const { user, adminAddUser } = useAuth();
@@ -35,6 +48,13 @@ const Dashboard = () => {
 
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState(false);
+
+  const [systemUsers, setSystemUsers] = useState([]);
+  const [userListLoading, setUserListLoading] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [updatingUserRoleId, setUpdatingUserRoleId] = useState(null);
+
   const [newUserForm, setNewUserForm] = useState({
     full_name: "",
     email: "",
@@ -73,9 +93,233 @@ const Dashboard = () => {
     }
   }, [isAdmin, isFleetManager, isDispatcher, isDriver]);
 
+  const [userRoleFilter, setUserRoleFilter] = useState("ALL");
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [batchRole, setBatchRole] = useState("Driver");
+  const [batchActionLoading, setBatchActionLoading] = useState(false);
+
+  // Role change with custom reason modal
+  const [roleModalUser, setRoleModalUser] = useState(null);
+  const [targetRole, setTargetRole] = useState("Driver");
+  const [roleChangeReason, setRoleChangeReason] = useState("");
+  const [roleChangeSubmitting, setRoleChangeSubmitting] = useState(false);
+
+  // Safe delete with custom reason modal
+  const [deleteModalUser, setDeleteModalUser] = useState(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  const fetchSystemUsers = useCallback(async () => {
+    if (!isAdmin) return;
+    setUserListLoading(true);
+    try {
+      const res = await api.get("/auth/users");
+      setSystemUsers(res.data || []);
+    } catch (err) {
+      console.error("Failed to load users", err);
+    } finally {
+      setUserListLoading(false);
+    }
+  }, [isAdmin]);
+
   useEffect(() => {
     fetchDashboardMetrics();
-  }, [fetchDashboardMetrics]);
+    if (isAdmin) {
+      fetchSystemUsers();
+    }
+  }, [fetchDashboardMetrics, fetchSystemUsers, isAdmin]);
+
+  const openRoleChangeModal = (u) => {
+    setRoleModalUser(u);
+    setTargetRole(u.role);
+    setRoleChangeReason("");
+  };
+
+  const handleConfirmRoleChange = async (e) => {
+    if (e) e.preventDefault();
+    if (!roleModalUser) return;
+    setRoleChangeSubmitting(true);
+    try {
+      const res = await api.patch(`/auth/users/${roleModalUser.user_id}/role`, {
+        role: targetRole,
+        reason: roleChangeReason || undefined,
+      });
+      toast.success(`Role updated to ${targetRole} for ${res.data.full_name}! Notification email sent to ${res.data.email}.`);
+      setSystemUsers((prev) =>
+        prev.map((u) => (u.user_id === roleModalUser.user_id ? { ...u, role: targetRole } : u))
+      );
+      setRoleModalUser(null);
+      fetchDashboardMetrics();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to update user role.");
+    } finally {
+      setRoleChangeSubmitting(false);
+    }
+  };
+
+  const openDeleteModal = (u) => {
+    setDeleteModalUser(u);
+    setDeleteReason("");
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModalUser) return;
+    setDeleteSubmitting(true);
+    try {
+      const q = deleteReason ? `?reason=${encodeURIComponent(deleteReason)}` : "";
+      const res = await api.delete(`/auth/users/${deleteModalUser.user_id}${q}`);
+      toast.success(res.data?.message || `User account for ${deleteModalUser.full_name} deleted.`);
+      setSystemUsers((prev) => prev.filter((u) => u.user_id !== deleteModalUser.user_id));
+      setSelectedUserIds((prev) => prev.filter((id) => id !== deleteModalUser.user_id));
+      setDeleteModalUser(null);
+      fetchDashboardMetrics();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to delete user.");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
+  const handleToggleStatus = async (targetUser) => {
+    const nextStatus = !targetUser.is_verified;
+    const actionName = nextStatus ? "activate" : "suspend";
+    if (targetUser.user_id === user?.user_id) {
+      toast.warning("Cannot modify status of your own active Admin account.");
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to ${actionName} the account for ${targetUser.full_name || targetUser.email}?`)) {
+      return;
+    }
+    try {
+      await api.patch(`/auth/users/${targetUser.user_id}/status`, { is_verified: nextStatus });
+      toast.success(`Account for ${targetUser.full_name || targetUser.email} successfully ${nextStatus ? "activated" : "suspended"}.`);
+      setSystemUsers((prev) =>
+        prev.map((u) => (u.user_id === targetUser.user_id ? { ...u, is_verified: nextStatus } : u))
+      );
+      fetchDashboardMetrics();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || `Failed to ${actionName} user.`);
+    }
+  };
+
+  // Inline edit state for user profile (name/email) on Executive Dashboard
+  const [editUserId, setEditUserId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  const openEditUser = (u) => {
+    setEditUserId(u.user_id);
+    setEditName(u.full_name || "");
+    setEditEmail(u.email || "");
+  };
+
+  const cancelEditUser = () => {
+    setEditUserId(null);
+    setEditName("");
+    setEditEmail("");
+  };
+
+  const handleSaveEditUser = async (userId) => {
+    if (!editName.trim()) { toast.warning("Full name is required."); return; }
+    if (!editEmail.trim() || !editEmail.includes("@")) { toast.warning("Enter a valid email."); return; }
+    setEditSubmitting(true);
+    try {
+      const res = await api.patch(`/auth/users/${userId}`, {
+        full_name: editName.trim(),
+        email: editEmail.trim(),
+      });
+      toast.success(`Profile updated for ${res.data.full_name}.`);
+      setSystemUsers((prev) =>
+        prev.map((u) => (u.user_id === userId ? { ...u, full_name: res.data.full_name, email: res.data.email } : u))
+      );
+      setEditUserId(null);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to update user profile.");
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedUserIds.length === filteredSystemUsers.length) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(filteredSystemUsers.map((u) => u.user_id));
+    }
+  };
+
+  const handleToggleSelectOne = (userId) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleBatchStatus = async (statusVal) => {
+    if (selectedUserIds.length === 0) return;
+    const actionName = statusVal ? "activate" : "suspend";
+    if (!window.confirm(`${statusVal ? "Activate" : "Suspend"} ${selectedUserIds.length} selected user account(s)?`)) return;
+    setBatchActionLoading(true);
+    try {
+      const res = await api.post("/auth/users/batch-status", {
+        user_ids: selectedUserIds,
+        is_verified: statusVal,
+        reason: `Executive dashboard batch account ${actionName}`,
+      });
+      toast.success(res.data?.message || `Accounts successfully ${statusVal ? "activated" : "suspended"}.`);
+      setSystemUsers((prev) =>
+        prev.map((u) => (selectedUserIds.includes(u.user_id) ? { ...u, is_verified: statusVal } : u))
+      );
+      setSelectedUserIds([]);
+      fetchDashboardMetrics();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || `Failed to batch ${actionName} users.`);
+    } finally {
+      setBatchActionLoading(false);
+    }
+  };
+
+  const handleBatchRoleUpdate = async () => {
+    if (selectedUserIds.length === 0) return;
+    setBatchActionLoading(true);
+    try {
+      const res = await api.post("/auth/users/batch-role", {
+        user_ids: selectedUserIds,
+        role: batchRole,
+        reason: "Executive dashboard batch role update",
+      });
+      toast.success(res.data?.message || `Updated ${selectedUserIds.length} users to ${batchRole}.`);
+      setSystemUsers((prev) =>
+        prev.map((u) => (selectedUserIds.includes(u.user_id) ? { ...u, role: batchRole } : u))
+      );
+      setSelectedUserIds([]);
+      fetchDashboardMetrics();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to execute batch role update.");
+    } finally {
+      setBatchActionLoading(false);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedUserIds.length === 0) return;
+    if (!window.confirm(`Permanently decommission and delete ${selectedUserIds.length} selected account(s)?`)) return;
+    setBatchActionLoading(true);
+    try {
+      const res = await api.post("/auth/users/batch-delete", {
+        user_ids: selectedUserIds,
+        reason: "Executive dashboard batch account decommission",
+      });
+      toast.success(res.data?.message || `Decommissioned ${selectedUserIds.length} accounts.`);
+      setSystemUsers((prev) => prev.filter((u) => !selectedUserIds.includes(u.user_id)));
+      setSelectedUserIds([]);
+      fetchDashboardMetrics();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to batch delete accounts.");
+    } finally {
+      setBatchActionLoading(false);
+    }
+  };
 
   const handleAddUserSubmit = async (e) => {
     e.preventDefault();
@@ -93,12 +337,26 @@ const Dashboard = () => {
       });
       setIsAddUserModalOpen(false);
       fetchDashboardMetrics();
+      fetchSystemUsers();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to add user.");
     } finally {
       setAddUserLoading(false);
     }
   };
+
+  const filteredSystemUsers = systemUsers.filter((u) => {
+    const q = userSearchQuery.toLowerCase();
+    const matchesSearch =
+      (u.full_name && u.full_name.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.role && u.role.toLowerCase().includes(q));
+
+    if (!matchesSearch) return false;
+    if (userRoleFilter === "ALL") return true;
+    if (userRoleFilter === "SUSPENDED") return u.is_verified === false;
+    return u.role === userRoleFilter;
+  });
 
   return (
     <div style={{ flex: 1, minHeight: "100vh", background: "#F8FAFC", padding: "28px", overflowY: "auto", color: "#0F172A" }}>
@@ -116,6 +374,19 @@ const Dashboard = () => {
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {isAdmin && (
             <>
+              <button
+                onClick={() => setIsUserManagementModalOpen(true)}
+                style={{
+                  padding: "8px 14px", borderRadius: "10px",
+                  background: "#FFFFFF", border: "1px solid #E2E8F0",
+                  color: "#D97706", cursor: "pointer", fontSize: "12px", fontWeight: 700,
+                  display: "flex", alignItems: "center", gap: "6px",
+                  boxShadow: "0 2px 6px rgba(15,23,42,0.04)"
+                }}
+              >
+                <ShieldCheck size={14} /> Manage Roles
+              </button>
+
               <button
                 onClick={() => setIsEmailModalOpen(true)}
                 style={{
@@ -587,7 +858,436 @@ const Dashboard = () => {
                     </div>
                   )}
                 </div>
+        
+              {/* ── User Roles & Access Privilege Governance ── */}
+              <div style={{
+                background: "#FFFFFF", borderRadius: "16px", border: "1px solid #E2E8F0",
+                overflow: "hidden", boxShadow: "0 1px 4px rgba(15,23,42,0.05)"
+              }}>
+
+                {/* Card Header */}
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "18px 22px", borderBottom: "1px solid #F1F5F9", flexWrap: "wrap", gap: "10px"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{
+                      width: "38px", height: "38px", borderRadius: "10px", flexShrink: 0,
+                      background: "linear-gradient(135deg, #D97706, #B45309)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      boxShadow: "0 4px 10px rgba(217,119,6,0.22)"
+                    }}>
+                      <ShieldCheck size={18} color="white" />
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 800, color: "#0F172A" }}>
+                        User Roles &amp; Access Privilege Governance
+                      </h3>
+                      <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#64748B" }}>
+                        Reassign roles, suspend accounts, and dispatch automated email alerts.
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <button
+                      onClick={fetchSystemUsers}
+                      style={{
+                        padding: "6px 12px", borderRadius: "8px", background: "#F8FAFC",
+                        border: "1px solid #E2E8F0", color: "#475569", cursor: "pointer",
+                        fontSize: "11px", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px"
+                      }}
+                    >
+                      <RefreshCw size={12} style={userListLoading ? { animation: "spin 0.8s linear infinite" } : {}} />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={() => setIsUserManagementModalOpen(true)}
+                      style={{
+                        padding: "6px 14px", borderRadius: "8px", background: "#0F172A",
+                        border: "none", color: "#FFFFFF", cursor: "pointer",
+                        fontSize: "11px", fontWeight: 700, display: "flex", alignItems: "center", gap: "5px"
+                      }}
+                    >
+                      <Shield size={12} /> Full Screen
+                    </button>
+                  </div>
+                </div>
+
+                {/* Role Stats Row */}
+                <div style={{
+                  display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
+                  borderBottom: "1px solid #F1F5F9"
+                }}>
+                  {[
+                    { label: "Admins", key: "Admin", color: "#B45309", bg: "rgba(217,119,6,0.08)", border: "rgba(217,119,6,0.18)" },
+                    { label: "Fleet Managers", key: "FleetManager", color: "#0F766E", bg: "rgba(13,148,136,0.08)", border: "rgba(13,148,136,0.18)" },
+                    { label: "Dispatchers", key: "Dispatcher", color: "#4338CA", bg: "rgba(79,70,229,0.08)", border: "rgba(79,70,229,0.18)" },
+                    { label: "Drivers", key: "Driver", color: "#047857", bg: "rgba(5,150,105,0.08)", border: "rgba(5,150,105,0.18)" },
+                  ].map((stat, i) => (
+                    <div
+                      key={stat.key}
+                      style={{
+                        padding: "14px 18px",
+                        borderRight: i < 3 ? "1px solid #F1F5F9" : "none",
+                        background: stat.bg
+                      }}
+                    >
+                      <p style={{ margin: 0, fontSize: "10px", fontWeight: 800, color: stat.color, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        {stat.label}
+                      </p>
+                      <p style={{ margin: "4px 0 0", fontSize: "22px", fontWeight: 900, color: stat.color, lineHeight: 1 }}>
+                        {adminData.operational_kpis.user_role_breakdown?.[stat.key] || 0}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Search + Filter Toolbar */}
+                <div style={{ padding: "14px 22px", borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <div style={{ position: "relative", flex: "1 1 200px", minWidth: "160px" }}>
+                    <Search size={13} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#94A3B8" }} />
+                    <input
+                      placeholder="Search by name, email, or role..."
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      style={{
+                        width: "100%", padding: "7px 10px 7px 30px", borderRadius: "8px",
+                        border: "1px solid #E2E8F0", fontSize: "12px", outline: "none",
+                        boxSizing: "border-box", background: "#F8FAFC", color: "#0F172A"
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                    {["ALL", "Admin", "FleetManager", "Dispatcher", "Driver", "SUSPENDED"].map((rf) => (
+                      <button
+                        key={rf}
+                        onClick={() => setUserRoleFilter(rf)}
+                        style={{
+                          padding: "5px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: 700,
+                          cursor: "pointer", whiteSpace: "nowrap",
+                          border: userRoleFilter === rf ? "1px solid #0D9488" : "1px solid #E2E8F0",
+                          background: userRoleFilter === rf ? "#0D9488" : "#FFFFFF",
+                          color: userRoleFilter === rf ? "#FFFFFF" : "#64748B",
+                        }}
+                      >
+                        {rf === "ALL" ? "All" : rf === "SUSPENDED" ? "🚫 Suspended" : rf}
+                      </button>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", marginLeft: "auto", whiteSpace: "nowrap" }}>
+                    {filteredSystemUsers.length} / {systemUsers.length}
+                  </span>
+                </div>
+
+                {/* Batch Selection Bar */}
+                {selectedUserIds.length > 0 && (
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "10px 22px", background: "#F0FDFA", borderBottom: "1px solid #99F6E4",
+                    flexWrap: "wrap", gap: "8px"
+                  }}>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "#0F766E" }}>
+                      ✓ {selectedUserIds.length} account(s) selected
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <select
+                        value={batchRole}
+                        onChange={(e) => setBatchRole(e.target.value)}
+                        style={{
+                          padding: "5px 8px", borderRadius: "6px", border: "1px solid #99F6E4",
+                          fontSize: "11px", fontWeight: 700, outline: "none", background: "#FFFFFF"
+                        }}
+                      >
+                        <option value="Admin">Admin</option>
+                        <option value="FleetManager">FleetManager</option>
+                        <option value="Dispatcher">Dispatcher</option>
+                        <option value="Driver">Driver</option>
+                      </select>
+                      <button
+                        onClick={handleBatchRoleUpdate}
+                        disabled={batchActionLoading}
+                        style={{
+                          padding: "5px 12px", borderRadius: "6px", background: "#0D9488",
+                          border: "none", color: "white", cursor: "pointer", fontSize: "11px", fontWeight: 700
+                        }}
+                      >
+                        {batchActionLoading ? "Updating..." : "Apply Role"}
+                      </button>
+                      <button
+                        onClick={() => handleBatchStatus(false)}
+                        disabled={batchActionLoading}
+                        style={{
+                          padding: "5px 12px", borderRadius: "6px", background: "rgba(220,38,38,0.12)",
+                          border: "1px solid rgba(220,38,38,0.3)", color: "#DC2626", cursor: "pointer", fontSize: "11px", fontWeight: 700
+                        }}
+                      >
+                        🚫 Batch Suspend
+                      </button>
+                      <button
+                        onClick={() => handleBatchStatus(true)}
+                        disabled={batchActionLoading}
+                        style={{
+                          padding: "5px 12px", borderRadius: "6px", background: "rgba(5,150,105,0.12)",
+                          border: "1px solid rgba(5,150,105,0.3)", color: "#059669", cursor: "pointer", fontSize: "11px", fontWeight: 700
+                        }}
+                      >
+                        🟢 Batch Activate
+                      </button>
+                      <button
+                        onClick={handleBatchDelete}
+                        disabled={batchActionLoading}
+                        style={{
+                          padding: "5px 12px", borderRadius: "6px", background: "#DC2626",
+                          border: "none", color: "white", cursor: "pointer", fontSize: "11px", fontWeight: 700
+                        }}
+                      >
+                        Decommission
+                      </button>
+                      <button
+                        onClick={() => setSelectedUserIds([])}
+                        style={{
+                          padding: "5px 8px", background: "none", border: "none",
+                          color: "#64748B", cursor: "pointer", fontSize: "11px"
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Users Table */}
+                <div style={{ overflowX: "auto" }}>
+                  {userListLoading ? (
+                    <div style={{ padding: "40px", textAlign: "center", color: "#64748B" }}>
+                      <RefreshCw size={20} style={{ animation: "spin 0.8s linear infinite", marginBottom: "8px", color: "#D97706" }} />
+                      <p style={{ margin: 0, fontSize: "12px" }}>Loading system accounts...</p>
+                    </div>
+                  ) : filteredSystemUsers.length === 0 ? (
+                    <div style={{ padding: "40px", textAlign: "center", color: "#64748B" }}>
+                      <Users size={30} style={{ opacity: 0.35, marginBottom: "8px" }} />
+                      <p style={{ margin: 0, fontSize: "12px", fontWeight: 700 }}>No users found.</p>
+                      <p style={{ margin: "4px 0 0", fontSize: "11px" }}>Adjust your filter or search query.</p>
+                    </div>
+                  ) : (
+                    <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                      <thead>
+                        <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #F1F5F9" }}>
+                          <th style={{ padding: "10px 12px 10px 22px", width: "36px" }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedUserIds.length > 0 && selectedUserIds.length === filteredSystemUsers.length}
+                              onChange={handleToggleSelectAll}
+                              style={{ cursor: "pointer", accentColor: "#0D9488" }}
+                            />
+                          </th>
+                          <th style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>User Profile</th>
+                          <th style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Role</th>
+                          <th style={{ padding: "10px 12px", fontSize: "11px", fontWeight: 800, color: "#64748B", textTransform: "uppercase", textAlign: "center" }}>Account Status</th>
+                          <th style={{ padding: "10px 22px 10px 12px", fontSize: "11px", fontWeight: 800, color: "#64748B", textTransform: "uppercase", textAlign: "right" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredSystemUsers.map((u) => {
+                          const badge = roleBadgeStyle(u.role);
+                          const isSelected = selectedUserIds.includes(u.user_id);
+                          return (
+                            <tr
+                              key={u.user_id}
+                              style={{
+                                borderBottom: "1px solid #F8FAFC",
+                                background: isSelected ? "#F0FDFA" : "transparent",
+                                transition: "background 0.15s"
+                              }}
+                            >
+                              {/* Checkbox */}
+                              <td style={{ padding: "11px 12px 11px 22px" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleSelectOne(u.user_id)}
+                                  style={{ cursor: "pointer", accentColor: "#0D9488" }}
+                                />
+                              </td>
+
+                              {/* User Info */}
+                              <td style={{ padding: "11px 12px" }}>
+                                {editUserId === u.user_id ? (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                                    <input
+                                      type="text"
+                                      value={editName}
+                                      onChange={(e) => setEditName(e.target.value)}
+                                      placeholder="Full Name / Username"
+                                      style={{
+                                        padding: "4px 8px", borderRadius: "6px", border: "1px solid #0D9488",
+                                        fontSize: "12px", color: "#0F172A", outline: "none", width: "150px"
+                                      }}
+                                    />
+                                    <input
+                                      type="email"
+                                      value={editEmail}
+                                      onChange={(e) => setEditEmail(e.target.value)}
+                                      placeholder="Email address"
+                                      style={{
+                                        padding: "4px 8px", borderRadius: "6px", border: "1px solid #CBD5E1",
+                                        fontSize: "11px", color: "#0F172A", outline: "none", width: "170px"
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                    <div style={{
+                                      width: "30px", height: "30px", borderRadius: "8px",
+                                      background: badge.bg, border: `1px solid ${badge.border}`,
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      fontWeight: 800, fontSize: "12px", color: badge.color, flexShrink: 0
+                                    }}>
+                                      {u.full_name ? u.full_name[0].toUpperCase() : "U"}
+                                    </div>
+                                    <div>
+                                      <p style={{ margin: 0, fontWeight: 700, fontSize: "12px", color: "#0F172A", lineHeight: 1.3 }}>{u.full_name}</p>
+                                      <p style={{ margin: 0, fontSize: "11px", color: "#94A3B8", lineHeight: 1.3 }}>{u.email}</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Role Badge */}
+                              <td style={{ padding: "11px 12px" }}>
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", padding: "3px 9px",
+                                  borderRadius: "20px", fontSize: "11px", fontWeight: 700,
+                                  background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`
+                                }}>
+                                  {u.role}
+                                </span>
+                              </td>
+
+                              {/* Status Toggle */}
+                              <td style={{ padding: "11px 12px", textAlign: "center" }}>
+                                <span style={{
+                                  fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px",
+                                  background: u.is_verified ? "rgba(5,150,105,0.1)" : "rgba(220,38,38,0.1)",
+                                  color: u.is_verified ? "#059669" : "#DC2626"
+                                }}>
+                                  {u.is_verified ? "Active" : "Suspended"}
+                                </span>
+                              </td>
+
+                              {/* Actions */}
+                              <td style={{ padding: "11px 22px 11px 12px", textAlign: "right" }}>
+                                {editUserId === u.user_id ? (
+                                  <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
+                                    <button
+                                      onClick={() => handleSaveEditUser(u.user_id)}
+                                      disabled={editSubmitting}
+                                      style={{
+                                        padding: "5px 10px", borderRadius: "7px",
+                                        background: "linear-gradient(135deg, #0D9488, #0891B2)",
+                                        border: "none", color: "white", cursor: editSubmitting ? "wait" : "pointer",
+                                        fontSize: "11px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "4px"
+                                      }}
+                                    >
+                                      <Check size={11} /> {editSubmitting ? "Saving..." : "Save"}
+                                    </button>
+                                    <button
+                                      onClick={cancelEditUser}
+                                      disabled={editSubmitting}
+                                      style={{
+                                        padding: "5px 8px", borderRadius: "7px",
+                                        background: "#F1F5F9", border: "1px solid #CBD5E1",
+                                        color: "#64748B", cursor: "pointer", fontSize: "11px"
+                                      }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
+                                    <button
+                                      onClick={() => openEditUser(u)}
+                                      title="Edit username and email"
+                                      style={{
+                                        padding: "5px 9px", borderRadius: "7px",
+                                        background: "#F8FAFC", border: "1px solid #CBD5E1",
+                                        color: "#0F172A", cursor: "pointer", fontSize: "11px", fontWeight: 600,
+                                        display: "inline-flex", alignItems: "center", gap: "4px"
+                                      }}
+                                    >
+                                      <Pencil size={11} color="#0D9488" /> Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleToggleStatus(u)}
+                                      title={u.is_verified ? "Suspend user account" : "Activate user account"}
+                                      style={{
+                                        padding: "5px 10px", borderRadius: "7px",
+                                        background: u.is_verified ? "rgba(220,38,38,0.08)" : "rgba(5,150,105,0.08)",
+                                        border: u.is_verified ? "1px solid rgba(220,38,38,0.22)" : "1px solid rgba(5,150,105,0.22)",
+                                        color: u.is_verified ? "#DC2626" : "#059669",
+                                        cursor: "pointer", fontSize: "11px", fontWeight: 700,
+                                        display: "inline-flex", alignItems: "center", gap: "4px"
+                                      }}
+                                    >
+                                      {u.is_verified ? <UserX size={11} /> : <CheckCircle2 size={11} />}
+                                      {u.is_verified ? "Suspend" : "Activate"}
+                                    </button>
+                                    <button
+                                      onClick={() => openRoleChangeModal(u)}
+                                      style={{
+                                        padding: "5px 11px", borderRadius: "7px",
+                                        background: "#F1F5F9", border: "1px solid #CBD5E1",
+                                        color: "#334155", cursor: "pointer", fontSize: "11px", fontWeight: 600,
+                                        display: "inline-flex", alignItems: "center", gap: "4px"
+                                      }}
+                                    >
+                                      <Edit3 size={11} /> Reassign
+                                    </button>
+                                    <button
+                                      onClick={() => openDeleteModal(u)}
+                                      style={{
+                                        padding: "5px 11px", borderRadius: "7px",
+                                        background: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)",
+                                        color: "#DC2626", cursor: "pointer", fontSize: "11px", fontWeight: 600,
+                                        display: "inline-flex", alignItems: "center", gap: "4px"
+                                      }}
+                                    >
+                                      <Trash2 size={11} /> Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* Card Footer */}
+                <div style={{
+                  padding: "10px 22px", borderTop: "1px solid #F1F5F9",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  background: "#FAFAFA"
+                }}>
+                  <span style={{ fontSize: "11px", color: "#94A3B8" }}>
+                    Showing <strong style={{ color: "#475569" }}>{filteredSystemUsers.length}</strong> of <strong style={{ color: "#475569" }}>{systemUsers.length}</strong> accounts
+                  </span>
+                  <button
+                    onClick={() => setIsUserManagementModalOpen(true)}
+                    style={{
+                      padding: "5px 12px", borderRadius: "7px", background: "none",
+                      border: "1px solid #E2E8F0", color: "#475569", cursor: "pointer",
+                      fontSize: "11px", fontWeight: 600, display: "flex", alignItems: "center", gap: "4px"
+                    }}
+                  >
+                    <Shield size={11} /> Open Full Governance Panel
+                  </button>
+                </div>
               </div>
+
+        </div>
 
               {/* System Health */}
               <div style={{ background: "#FFFFFF", padding: "20px", borderRadius: "16px", border: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "14px" }}>
@@ -761,6 +1461,16 @@ const Dashboard = () => {
 
       {/* Admin Modals */}
       {isEmailModalOpen && <EmailLogsModal isOpen={isEmailModalOpen} onClose={() => setIsEmailModalOpen(false)} />}
+      {isUserManagementModalOpen && (
+        <UserManagementModal
+          isOpen={isUserManagementModalOpen}
+          onClose={() => {
+            setIsUserManagementModalOpen(false);
+            fetchSystemUsers();
+            fetchDashboardMetrics();
+          }}
+        />
+      )}
       {isAddUserModalOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
           <div style={{ background: "#FFFFFF", borderRadius: "16px", width: "420px", padding: "24px", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}>
@@ -828,6 +1538,107 @@ const Dashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Role Change Modal */}
+      {roleModalUser && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 10000,
+          background: "rgba(15,23,42,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px"
+        }}>
+          <div style={{ background: "#FFFFFF", borderRadius: "16px", maxWidth: "460px", width: "100%", padding: "24px", boxShadow: "0 20px 50px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <ShieldCheck size={18} color="#D97706" />
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 800, color: "#0F172A" }}>Reassign Role & Privileges</h3>
+              </div>
+              <button onClick={() => setRoleModalUser(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8" }}><X size={18} /></button>
+            </div>
+            <form onSubmit={handleConfirmRoleChange} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              <div style={{ background: "#F8FAFC", padding: "12px", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
+                <p style={{ margin: 0, fontSize: "12px", color: "#64748B" }}>Account Member:</p>
+                <p style={{ margin: "2px 0 0", fontSize: "13px", fontWeight: 800, color: "#0F172A" }}>{roleModalUser.full_name} ({roleModalUser.email})</p>
+                <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#64748B" }}>Current Role: <span style={{ fontWeight: 700, color: "#0D9488" }}>{roleModalUser.role}</span></p>
+              </div>
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Select New Assigned Role</label>
+                <select
+                  value={targetRole}
+                  onChange={(e) => setTargetRole(e.target.value)}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "13px", fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+                >
+                  <option value="Admin">Admin (Executive Governance & Full Access)</option>
+                  <option value="FleetManager">FleetManager (Vehicles, Fuel & Maintenance)</option>
+                  <option value="Dispatcher">Dispatcher (Shipments, Trips & GPS Tracking)</option>
+                  <option value="Driver">Driver (Driver Manifests & Attendance)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Admin Note / Reason (Included in notification email)</label>
+                <textarea
+                  rows={2}
+                  value={roleChangeReason}
+                  onChange={(e) => setRoleChangeReason(e.target.value)}
+                  placeholder="e.g. Promoted to Senior Logistics Manager..."
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "12px", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div style={{ background: "rgba(13,148,136,0.06)", border: "1px solid rgba(13,148,136,0.2)", borderRadius: "8px", padding: "10px 12px", display: "flex", gap: "8px" }}>
+                <Info size={15} color="#0D9488" style={{ flexShrink: 0, marginTop: "2px" }} />
+                <p style={{ margin: 0, fontSize: "11px", color: "#0F766E", lineHeight: 1.4 }}>
+                  A role transition email with new permission details will be dispatched to <strong>{roleModalUser.email}</strong>.
+                </p>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                <button type="button" onClick={() => setRoleModalUser(null)} style={{ padding: "8px 14px", borderRadius: "8px", border: "1px solid #E2E8F0", background: "#FFFFFF", cursor: "pointer", fontSize: "12px" }}>Cancel</button>
+                <button type="submit" disabled={roleChangeSubmitting} style={{ padding: "8px 18px", borderRadius: "8px", border: "none", background: "#0D9488", color: "white", cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>
+                  {roleChangeSubmitting ? "Updating..." : "Confirm & Send Email"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Delete Confirmation Modal */}
+      {deleteModalUser && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 10000,
+          background: "rgba(15,23,42,0.7)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px"
+        }}>
+          <div style={{ background: "#FFFFFF", borderRadius: "16px", maxWidth: "440px", width: "100%", padding: "24px", boxShadow: "0 20px 50px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <AlertTriangle size={20} color="#DC2626" />
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 800, color: "#DC2626" }}>Decommission User Account</h3>
+              </div>
+              <button onClick={() => setDeleteModalUser(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94A3B8" }}><X size={18} /></button>
+            </div>
+            <p style={{ fontSize: "13px", color: "#334155", lineHeight: 1.5, margin: "0 0 12px" }}>
+              Permanently delete <strong>{deleteModalUser.full_name}</strong> ({deleteModalUser.email})?
+            </p>
+            <div style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: "8px", padding: "10px 12px", marginBottom: "14px" }}>
+              <p style={{ margin: 0, fontSize: "11px", color: "#B91C1C", lineHeight: 1.4 }}>
+                <strong>Safe FK Cleanup:</strong> Driver records, vehicle assignments, trips, attendance, and leave requests will be safely unlinked. A decommission email will be sent.
+              </p>
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ fontSize: "11px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "4px" }}>Reason for Termination (Optional)</label>
+              <input
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="e.g. End of contract / Organization offboarding..."
+                style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid #CBD5E1", fontSize: "12px", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button type="button" onClick={() => setDeleteModalUser(null)} style={{ padding: "8px 14px", borderRadius: "8px", border: "1px solid #E2E8F0", background: "#FFFFFF", cursor: "pointer", fontSize: "12px" }}>Cancel</button>
+              <button type="button" onClick={handleConfirmDelete} disabled={deleteSubmitting} style={{ padding: "8px 18px", borderRadius: "8px", border: "none", background: "#DC2626", color: "white", cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>
+                {deleteSubmitting ? "Deleting..." : "Permanently Delete"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -307,22 +307,19 @@ def optimize_shipment_route(
 
     origin = {"name": origin_name, "lat": origin_lat, "lon": origin_lon}
 
-    # 3. Coordinate mapping helper for city names
-    CITY_COORDS = {
-        "kollam": (8.8932, 76.6141), "mumbai": (19.0760, 72.8777), "pune": (18.5204, 73.8567),
-        "delhi": (28.6139, 77.2090), "bangalore": (12.9716, 77.5946), "chennai": (13.0827, 80.2707),
-        "hyderabad": (17.3850, 78.4867), "kolkata": (22.5726, 88.3639),
-    }
+    # 3. Coordinate mapping helper with full geocoding
+    from app.core.route_optimization import geocode_address
 
     def resolve_coords(dest_name, d_lat, d_lon):
         if d_lat is not None and d_lon is not None:
             return float(d_lat), float(d_lon)
         if dest_name:
-            k = dest_name.strip().lower()
-            for city, coords in CITY_COORDS.items():
-                if city in k:
-                    return coords
-        # Default jitter around origin
+            try:
+                lat, lon = geocode_address(dest_name)
+                return lat, lon
+            except Exception:
+                pass
+        # Default fallback
         return origin_lat + 0.05, origin_lon + 0.05
 
     # 4. Prepare stops list

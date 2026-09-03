@@ -250,9 +250,18 @@ const Trips = () => {
                           </button>
                         )}
 
-                        {!canExecuteTrip && t.status !== "Completed" && (
+                        {t.status === "In Progress" && (
+                          <a
+                            href={`/tracking/${t.vehicle_id}`}
+                            style={{ padding: "6px 10px", borderRadius: "6px", background: "rgba(79,70,229,0.08)", border: "1px solid rgba(79,70,229,0.25)", color: "#4F46E5", fontSize: "11px", fontWeight: 700, display: "flex", alignItems: "center", gap: "4px", textDecoration: "none" }}
+                          >
+                            <Navigation size={11} /> Live Map
+                          </a>
+                        )}
+
+                        {!canExecuteTrip && t.status === "Scheduled" && (
                           <span style={{ fontSize: "11px", color: "#64748B", fontStyle: "italic" }}>
-                            Live Route Active
+                            Scheduled
                           </span>
                         )}
                       </div>

@@ -331,7 +331,13 @@ def get_admin_dashboard(
         })
 
     # 5. System Monitoring & Health
-    users_count = db.query(User).count()
+    all_users = db.query(User).all()
+    users_count = len(all_users)
+    role_breakdown = {"Admin": 0, "FleetManager": 0, "Dispatcher": 0, "Driver": 0}
+    for u in all_users:
+        r = u.role.value if hasattr(u.role, "value") else str(u.role)
+        role_breakdown[r] = role_breakdown.get(r, 0) + 1
+
     notifications_count = db.query(Notification).count()
     email_logs = get_email_logs()
 
@@ -347,6 +353,7 @@ def get_admin_dashboard(
             "total_trips": len(trips),
             "total_maintenance_spend": round(total_maint_spend, 2),
             "system_users": users_count,
+            "user_role_breakdown": role_breakdown,
         },
         "attention_shipments": attention_shipments,
         "maintenance_analytics": {

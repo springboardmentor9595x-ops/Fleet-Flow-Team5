@@ -122,6 +122,21 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
+  const updateProfile = async (profileData) => {
+    const res = await api.patch("/auth/me", profileData);
+    if (res.data?.access_token) {
+      localStorage.setItem("token", res.data.access_token);
+      setToken(res.data.access_token);
+    }
+    if (res.data?.user) {
+      setUser(res.data.user);
+    } else {
+      const meRes = await api.get("/auth/me");
+      setUser(meRes.data);
+    }
+    return res.data;
+  };
+
   const logout = () => {
     localStorage.removeItem("token");
     setToken(null);
@@ -143,6 +158,7 @@ export const AuthProvider = ({ children }) => {
         verifyOtp,
         resendOtp,
         adminAddUser,
+        updateProfile,
         fetchEmailLogs,
         logout,
         clearNotification,

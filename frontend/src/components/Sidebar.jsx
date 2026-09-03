@@ -5,6 +5,7 @@ import fleetApi from "../api/fleet";
 import NotificationBell from "./NotificationBell";
 import ChangePasswordModal from "./ChangePasswordModal";
 import UserManagementModal from "./UserManagementModal";
+import UserProfileModal from "./UserProfileModal";
 import {
   Truck,
   LayoutDashboard,
@@ -23,7 +24,8 @@ import {
   Activity,
   CalendarCheck,
   KeyRound,
-  UserCog
+  UserCog,
+  Pencil
 } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -104,6 +106,7 @@ const Sidebar = () => {
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [showChangePassModal, setShowChangePassModal] = useState(false);
   const [showUserMgmtModal, setShowUserMgmtModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   useEffect(() => {
     if (user?.role === "Driver") {
@@ -198,6 +201,20 @@ const Sidebar = () => {
                 {user?.email}
               </p>
             </div>
+            {/* Edit profile icon */}
+            <button
+              onClick={() => setShowProfileModal(true)}
+              title="Edit Profile"
+              style={{
+                background: "transparent", border: "none", color: "#94A3B8",
+                cursor: "pointer", padding: "3px", borderRadius: "4px",
+                display: "flex", alignItems: "center", flexShrink: 0
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#0D9488"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "#94A3B8"; }}
+            >
+              <Pencil size={12} />
+            </button>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "4px" }}>
             <span style={{
@@ -223,6 +240,7 @@ const Sidebar = () => {
               <KeyRound size={12} /> Key
             </button>
           </div>
+
 
           {/* Admin User Management Button */}
           {user?.role === "Admin" && (
@@ -367,6 +385,10 @@ const Sidebar = () => {
       <UserManagementModal
         isOpen={showUserMgmtModal}
         onClose={() => setShowUserMgmtModal(false)}
+      />
+      <UserProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
       />
     </aside>
   );
