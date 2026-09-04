@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db
+from app.core.deps import get_current_user, get_db, require_roles
 from app.core.security import ALGORITHM, SECRET_KEY
 from app.crud import gps as gps_crud
 from app.crud import shipment as shipment_crud
@@ -121,9 +121,18 @@ async def handle_incoming_gps_data(raw_data: dict, db: Session) -> dict:
 @router.websocket("/location")
 @router.websocket("/ws/gps")
 async def websocket_gps_endpoint(websocket: WebSocket, db: Session = Depends(get_db)):
-    """Live WebSocket streaming endpoint for GPS pings and client tracking subscribers."""
+    """Live WebSocket streaming endpoint for GPS pings and client tracking subscribers. Restricted to Admin, FleetManager, Dispatcher."""
     token = websocket.query_params.get("token")
     user = authenticate_ws_token(token, db)
+
+    # Live tracking stream is available to Admin, FleetManager, Dispatcher, and Driver
+    if not user or user.role not in ["Admin", "FleetManager", "Dispatcher", "Driver"]:
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION,
+            reason="Access forbidden: Live tracking stream requires valid authenticated role.",
+        )
+        return
+
     # Connect client
     await manager.connect(websocket)
 
@@ -161,12 +170,14 @@ async def simulate_gps_ping(
     return {"message": "GPS ping processed and broadcasted", "data": data}
 
 
-@router.get("/latest-locations")
+@router.get(
+    "/latest-locations",
+    dependencies=[Depends(require_roles("Admin", "FleetManager", "Dispatcher", "Driver"))],
+)
 def get_latest_vehicle_locations(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> list[dict]:
-    """Retrieve the latest GPS position for all fleet vehicles."""
+    """Retrieve the latest GPS position for fleet vehicles. Allowed for Admin, FleetManager, Dispatcher, Driver."""
     return gps_crud.get_latest_locations_for_all_vehicles(db)
 
 

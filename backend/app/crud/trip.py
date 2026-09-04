@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
+from app.crud.notification import notify_shipment_delivered
 from app.models.driver import Driver
 from app.models.shipment import Shipment
 from app.models.trip import Trip
@@ -42,6 +43,12 @@ def create_trip(db: Session, trip_in: TripCreate) -> Trip:
 
     db.commit()
     db.refresh(trip)
+
+    # In-App Notification to assigned driver
+    from app.crud.notification import notify_trip_assigned
+    if trip.driver_id:
+        notify_trip_assigned(db, trip, trip.driver_id)
+
     return trip
 
 
@@ -137,6 +144,7 @@ def end_trip(db: Session, trip_id: UUID) -> Trip | None:
             shipment.status = "Delivered"
             shipment.actual_delivery_time = now
             db.add(shipment)
+            notify_shipment_delivered(db, shipment)
 
     db.add(trip)
     db.commit()

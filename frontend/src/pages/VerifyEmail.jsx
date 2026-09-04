@@ -1,55 +1,142 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, AlertTriangle, XCircle, Info, Loader2, ArrowRight, RefreshCw } from 'lucide-react';
-import { verifyEmail } from '../api/auth';
-import ResendVerificationModal from '../components/auth/ResendVerificationModal';
+import { toast } from 'react-toastify';
+import { CheckCircle2, AlertCircle, Mail, ArrowRight, RefreshCw, KeyRound, Clock } from 'lucide-react';
+import { verifyEmail, resendVerification } from '../api/auth';
+import InputField from '../components/auth/InputField';
+import GradientButton from '../components/auth/GradientButton';
 import './VerifyEmail.css';
 
-// States: 'VERIFYING' | 'SUCCESS' | 'ALREADY_VERIFIED' | 'EXPIRED' | 'INVALID'
 function VerifyEmail() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [state, setState] = useState('VERIFYING');
-  const [message, setMessage] = useState('Verifying your email address...');
-  const [showResendModal, setShowResendModal] = useState(false);
+
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    if (!token || !token.trim()) {
-      setState('INVALID');
-      setMessage('Invalid verification link.');
+    const emailParam = searchParams.get('email');
+    const tokenParam = searchParams.get('token') || searchParams.get('code');
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+    if (tokenParam) {
+      setCode(tokenParam.trim());
+    }
+  }, [searchParams]);
+
+  // Handle resend cooldown countdown
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  const handleVerify = async (e) => {
+    e?.preventDefault();
+    setError('');
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim();
+
+    if (!cleanEmail) {
+      setError('Please enter your email address.');
       return;
     }
 
-    setState('VERIFYING');
-    setMessage('Verifying your email address...');
+    if (!cleanCode || cleanCode.length !== 6 || !/^\d{6}$/.test(cleanCode)) {
+      setError('Please enter a valid 6-digit numeric verification code.');
+      return;
+    }
 
-    verifyEmail(token)
-      .then((res) => {
-        const statusType = res.data?.status;
-        if (statusType === 'already_verified') {
-          setState('ALREADY_VERIFIED');
-          setMessage(res.data?.message || 'Email address is already verified.');
-        } else {
-          setState('SUCCESS');
-          setMessage(res.data?.message || 'Email verified successfully.');
-        }
-      })
-      .catch((err) => {
-        const detail = err.response?.data?.detail || '';
-        const lowerDetail = detail.toLowerCase();
-        if (lowerDetail.includes('expired')) {
-          setState('EXPIRED');
-          setMessage(detail || 'Verification link has expired. Please request a new verification email.');
-        } else if (lowerDetail.includes('already verified')) {
-          setState('ALREADY_VERIFIED');
-          setMessage('Email address is already verified.');
-        } else {
-          setState('INVALID');
-          setMessage(detail || 'Invalid verification link.');
-        }
-      });
-  }, [searchParams]);
+    setLoading(true);
+    try {
+      const response = await verifyEmail(cleanEmail, cleanCode);
+      const statusType = response.data?.status;
+
+      setSuccess(true);
+      if (statusType === 'already_verified') {
+        toast.info('Email address is already verified.');
+      } else {
+        toast.success('Email verified successfully!');
+      }
+
+      // Redirect user to LOGIN page on successful verification
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      const message = typeof detail === 'string' ? detail : 'Verification failed. Please check your code and try again.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError('Please enter your email address to request a new code.');
+      return;
+    }
+
+    setResending(true);
+    setError('');
+    try {
+      const res = await resendVerification(cleanEmail);
+      toast.success(res.data?.message || 'New verification code sent to your email.');
+      setCooldown(60); // 60 seconds cooldown
+    } catch (err) {
+      const statusCode = err.response?.status;
+      const detail = err.response?.data?.detail;
+
+      if (statusCode === 429) {
+        toast.warning(detail || 'Please wait before requesting another code.');
+      } else {
+        const message = typeof detail === 'string' ? detail : 'Failed to send new code. Please try again.';
+        setError(message);
+        toast.error(message);
+      }
+    } finally {
+      setResending(false);
+    }
+  };
+
+  if (success) {
+    return (
+      <main className="auth-page-clean">
+        <div className="auth-container">
+          <div className="auth-card verify-card success-card-animate">
+            <div className="state-icon-badge success">
+              <CheckCircle2 size={48} />
+            </div>
+            <h2 className="state-title">Email Verified!</h2>
+            <p className="state-desc">
+              Your email address has been verified successfully. Redirecting you to the login page...
+            </p>
+            <div className="verify-actions">
+              <button
+                type="button"
+                className="btn-primary-full"
+                onClick={() => navigate('/login')}
+              >
+                Go to Login <ArrowRight size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="auth-page-clean">
@@ -57,117 +144,77 @@ function VerifyEmail() {
         <div className="auth-card verify-card">
           <div className="auth-header">
             <div className="auth-icon-circle">
-              <span className="auth-icon">🚚</span>
+              <KeyRound size={28} color="#38bdf8" />
             </div>
-            <h1 className="auth-title">FleetFlow</h1>
+            <h1 className="auth-title">Verify Email</h1>
+            <p className="auth-subtitle">Enter the 6-digit code sent to your email address</p>
           </div>
 
-          {state === 'VERIFYING' && (
-            <div className="verify-state-content">
-              <div className="state-icon-badge verifying">
-                <Loader2 size={36} className="spin-animation" />
-              </div>
-              <h2 className="state-title">Verifying...</h2>
-              <p className="state-desc">Please wait while we confirm your email verification link.</p>
-            </div>
-          )}
-
-          {state === 'SUCCESS' && (
-            <div className="verify-state-content">
-              <div className="state-icon-badge success">
-                <CheckCircle2 size={36} />
-              </div>
-              <h2 className="state-title">Email verified successfully.</h2>
-              <p className="state-desc">
-                Your email address has been verified. You can now log in to access your FleetFlow account.
-              </p>
-              <div className="verify-actions">
-                <button
-                  type="button"
-                  className="btn-primary-full"
-                  onClick={() => navigate('/login')}
-                >
-                  Continue to Login <ArrowRight size={16} />
-                </button>
+          {error && (
+            <div className="auth-error-alert">
+              <AlertCircle size={20} className="alert-icon" />
+              <div className="alert-body">
+                <p>{error}</p>
               </div>
             </div>
           )}
 
-          {state === 'ALREADY_VERIFIED' && (
-            <div className="verify-state-content">
-              <div className="state-icon-badge info">
-                <Info size={36} />
-              </div>
-              <h2 className="state-title">Email address is already verified.</h2>
-              <p className="state-desc">
-                Your email address has already been verified previously. You can sign in directly.
-              </p>
-              <div className="verify-actions">
-                <button
-                  type="button"
-                  className="btn-primary-full"
-                  onClick={() => navigate('/login')}
-                >
-                  Continue to Login <ArrowRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
+          <form onSubmit={handleVerify} className="verify-code-form">
+            <InputField
+              label="Email Address"
+              name="email"
+              type="email"
+              placeholder="name@company.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
 
-          {state === 'EXPIRED' && (
-            <div className="verify-state-content">
-              <div className="state-icon-badge warning">
-                <AlertTriangle size={36} />
+            <div className="code-input-group">
+              <label className="input-label">6-Digit Verification Code</label>
+              <div className="code-input-wrapper">
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={code}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setCode(val);
+                  }}
+                  className="code-digits-input"
+                  autoFocus
+                  required
+                />
               </div>
-              <h2 className="state-title">Verification link has expired.</h2>
-              <p className="state-desc">
-                Verification link has expired. Please request a new verification email.
-              </p>
-              <div className="verify-actions">
-                <button
-                  type="button"
-                  className="btn-primary-full"
-                  onClick={() => setShowResendModal(true)}
-                >
-                  <RefreshCw size={16} /> Resend verification email
-                </button>
-                <Link to="/login" className="btn-secondary-link">
-                  Back to Login
-                </Link>
+              <div className="code-expiry-note">
+                <Clock size={14} />
+                <span>Code expires in <strong>10 minutes</strong></span>
               </div>
             </div>
-          )}
 
-          {state === 'INVALID' && (
-            <div className="verify-state-content">
-              <div className="state-icon-badge error">
-                <XCircle size={36} />
-              </div>
-              <h2 className="state-title">Invalid verification link.</h2>
-              <p className="state-desc">
-                This verification link is invalid or has already been used.
-              </p>
-              <div className="verify-actions">
-                <button
-                  type="button"
-                  className="btn-primary-full"
-                  onClick={() => setShowResendModal(true)}
-                >
-                  <RefreshCw size={16} /> Resend verification email
-                </button>
-                <Link to="/login" className="btn-secondary-link">
-                  Back to Login
-                </Link>
-              </div>
+            <GradientButton type="submit" loading={loading} disabled={code.length !== 6}>
+              {loading ? 'Verifying...' : 'Verify Email'}
+            </GradientButton>
+
+            <div className="verify-footer-actions">
+              <button
+                type="button"
+                className="resend-code-btn"
+                onClick={handleResend}
+                disabled={resending || cooldown > 0}
+              >
+                <RefreshCw size={15} className={resending ? 'spin-animation' : ''} />
+                {cooldown > 0 ? `Resend Code (${cooldown}s)` : 'Resend Code'}
+              </button>
+
+              <Link to="/login" className="back-login-link">
+                Back to Sign In
+              </Link>
             </div>
-          )}
+          </form>
         </div>
       </div>
-
-      <ResendVerificationModal
-        isOpen={showResendModal}
-        onClose={() => setShowResendModal(false)}
-      />
     </main>
   );
 }

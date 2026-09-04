@@ -3,6 +3,7 @@ from .driver import Driver
 from .email_verification import EmailVerificationToken
 from .fuel_record import FuelRecord
 from .gps_tracking import GPSTracking
+from .leave_request import LeaveRequest
 from .maintenance import Maintenance
 from .notification import Notification
 from .shipment import Shipment

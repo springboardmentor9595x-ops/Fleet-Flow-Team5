@@ -7,19 +7,19 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
   border-radius: var(--radius-lg);
   padding: 14px 20px;
   margin-bottom: 24px;
-  color: #fbbf24;
+  color: #FBBF24;
 }
 
 .alert-badge-icon {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(245, 158, 11, 0.2);
+  background: rgba(251, 191, 36, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -27,7 +27,7 @@
 }
 
 .alert-text-body strong {
-  color: #fff;
+  color: var(--text-main);
 }
 
 .shipments-list-container {
@@ -44,11 +44,11 @@
 }
 
 .shipment-card:hover {
-  border-color: #475569;
+  border-color: #343B60;
 }
 
 .shipment-card.border-delayed {
-  border-left: 4px solid #f59e0b;
+  border-left: 4px solid #FBBF24;
 }
 
 .shipment-card-header {
@@ -77,7 +77,7 @@
   font-weight: 700;
   font-size: 0.95rem;
   color: var(--accent-cyan);
-  background: #0f172a;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   padding: 6px 12px;
   border-radius: var(--radius-md);
@@ -92,7 +92,7 @@
 
 .location-name {
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .shipment-secondary-info {
@@ -110,7 +110,7 @@
 }
 
 .weight-pill {
-  background: #0f172a;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   padding: 2px 8px;
   border-radius: 4px;
@@ -130,7 +130,7 @@
 
 .shipment-card-expanded {
   padding: 20px 24px 24px;
-  background: #0f172a;
+  background: var(--bg-input);
   border-top: 1px solid var(--border-color);
 }
 
@@ -157,7 +157,7 @@
 .meta-val {
   font-size: 0.88rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .shipment-actions-footer {

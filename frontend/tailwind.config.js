@@ -3,18 +3,63 @@ export default {
   theme: {
     extend: {
       colors: {
+        background: '#0B0E1A',
+        card: '#141830',
+        surface: {
+          DEFAULT: '#141830',
+          subtle: '#0F1326',
+          hover: '#1C2242',
+        },
+        accent: {
+          DEFAULT: '#22D3EE',
+          hover: '#06B6D4',
+          light: '#67E8F9',
+          glow: 'rgba(34, 211, 238, 0.25)',
+        },
+        primary: {
+          DEFAULT: '#22D3EE',
+          hover: '#06B6D4',
+          dark: '#0891B2',
+          light: '#67E8F9',
+        },
+        success: {
+          DEFAULT: '#34D399',
+          light: 'rgba(52, 211, 153, 0.15)',
+          border: 'rgba(52, 211, 153, 0.3)',
+        },
+        warning: {
+          DEFAULT: '#FBBF24',
+          light: 'rgba(251, 191, 36, 0.15)',
+          border: 'rgba(251, 191, 36, 0.3)',
+        },
+        danger: {
+          DEFAULT: '#F87171',
+          light: 'rgba(248, 113, 113, 0.15)',
+          border: 'rgba(248, 113, 113, 0.3)',
+        },
+        'text-primary': '#F8FAFC',
+        'text-muted': '#94A3B8',
+        'text-dim': '#64748B',
+        border: {
+          DEFAULT: '#252A45',
+          light: 'rgba(255, 255, 255, 0.08)',
+          accent: 'rgba(34, 211, 238, 0.3)',
+        },
         brand: {
-          slate: '#020617',
-          night: '#030711',
-          mist: '#111827',
+          dark: '#0B0E1A',
+          card: '#141830',
+          cyan: '#22D3EE',
+          slate: '#0B0E1A',
+          night: '#070A14',
+          mist: '#141830',
         },
       },
       boxShadow: {
-        glow: '0 20px 80px rgba(30, 64, 175, 0.14)',
-        panel: '0 30px 80px rgba(15, 23, 42, 0.35)',
+        glow: '0 0 25px rgba(34, 211, 238, 0.25)',
+        panel: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
       },
       backgroundImage: {
-        'radial-glow': 'radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 32%), radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.18), transparent 30%)',
+        'radial-glow': 'radial-gradient(circle at top left, rgba(34, 211, 238, 0.18), transparent 32%), radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.12), transparent 30%)',
       },
       keyframes: {
         float: {

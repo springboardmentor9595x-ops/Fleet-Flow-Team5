@@ -20,9 +20,11 @@ class Settings:
     SMTP_USERNAME: str | None = os.getenv("SMTP_USERNAME") or None
     SMTP_PASSWORD: str | None = os.getenv("SMTP_PASSWORD") or None
     SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "noreply@fleetflow.com")
+    SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "FleetFlow")
     SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = int(os.getenv("EMAIL_VERIFICATION_EXPIRE_HOURS", "24"))
+    EMAIL_VERIFICATION_EXPIRE_MINUTES: int = int(os.getenv("EMAIL_VERIFICATION_EXPIRE_MINUTES", "10"))
     RESEND_COOLDOWN_SECONDS: int = int(os.getenv("RESEND_COOLDOWN_SECONDS", "60"))
 
 

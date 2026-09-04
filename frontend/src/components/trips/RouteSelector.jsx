@@ -6,10 +6,10 @@ export default function RouteSelector({ routes = [], selectedType, onSelect }) {
   if (!routes || routes.length === 0) return null;
 
   const getRouteIcon = (type) => {
-    if (type === 'fastest') return <Zap size={20} color="#38bdf8" />;
-    if (type === 'shortest') return <Compass size={20} color="#a78bfa" />;
-    if (type === 'traffic_avoidance') return <ShieldAlert size={20} color="#f59e0b" />;
-    return <Leaf size={20} color="#34d399" />;
+    if (type === 'fastest') return <Zap size={20} color="#22D3EE" />;
+    if (type === 'shortest') return <Compass size={20} color="#A78BFA" />;
+    if (type === 'traffic_avoidance') return <ShieldAlert size={20} color="#FBBF24" />;
+    return <Leaf size={20} color="#34D399" />;
   };
 
   return (

@@ -1,0 +1,12 @@
+.logistics-dash-wrapper {
+  min-height: 100vh;
+  background-color: var(--bg-dark, #0b0e1a);
+  color: var(--text-main, #f8fafc);
+}
+
+.logistics-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}

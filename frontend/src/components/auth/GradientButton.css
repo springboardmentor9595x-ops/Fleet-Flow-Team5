@@ -4,20 +4,21 @@
   border: none;
   border-radius: 1.5rem;
   padding: 1rem 1.1rem;
-  background: linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, #22D3EE 0%, #06B6D4 100%);
+  color: #0B0E1A;
   font-size: 0.97rem;
   font-weight: 700;
   transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 16px 36px rgba(14, 165, 233, 0.24);
+  box-shadow: 0 14px 30px rgba(34, 211, 238, 0.35);
 }
 
 .gradient-button:hover:not(:disabled) {
   transform: translateY(-1px);
-  filter: brightness(1.05);
+  filter: brightness(1.06);
+  box-shadow: 0 16px 36px rgba(34, 211, 238, 0.45);
 }
 
 .gradient-button:disabled {
   cursor: not-allowed;
-  opacity: 0.75;
+  opacity: 0.65;
 }

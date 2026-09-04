@@ -28,6 +28,9 @@ class User(Base):
     email = Column(String(100), unique=True, index=True, nullable=False)
     password = Column(String(255), nullable=False)
     phone = Column(String(15), nullable=True)
+    address = Column(String(255), nullable=True)
+    emergency_contact = Column(String(100), nullable=True)
+    profile_photo = Column(String(500), nullable=True)
     role = Column(
         user_roles,
         nullable=False,

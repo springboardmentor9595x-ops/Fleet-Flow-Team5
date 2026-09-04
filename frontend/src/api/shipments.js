@@ -8,6 +8,10 @@ export function getShipmentById(id) {
   return api.get(`/shipments/${id}`);
 }
 
+export function getShipmentTracking(id) {
+  return api.get(`/shipments/${id}/tracking`);
+}
+
 export function trackShipmentByNumber(trackingNumber) {
   return api.get(`/shipments/tracking/${trackingNumber}`);
 }

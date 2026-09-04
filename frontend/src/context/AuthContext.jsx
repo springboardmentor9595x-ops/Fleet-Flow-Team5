@@ -40,13 +40,13 @@ export function AuthProvider({ children }) {
     restoreSession();
   }, [token]);
 
-  const login = useCallback(async (email, password) => {
+  const login = useCallback(async (email, password, role) => {
     setError('');
     setLoading(true);
     skipRestoreRef.current = true;
     try {
-      // 1. Exchange credentials for a JWT.
-      const response = await loginRequest({ email, password });
+      // 1. Exchange credentials and role for a JWT.
+      const response = await loginRequest({ email, password, role });
       const nextToken = response.data.access_token;
       localStorage.setItem('fleetflow_token', nextToken);
 
@@ -93,6 +93,21 @@ export function AuthProvider({ children }) {
     setError('');
   }, []);
 
+  const updateUserProfile = useCallback((updatedUserData) => {
+    setUser((prev) => (prev ? { ...prev, ...updatedUserData } : updatedUserData));
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await getMe(token);
+      setUser(response.data);
+      return response.data;
+    } catch (err) {
+      console.error('Failed to refresh user profile:', err);
+    }
+  }, [token]);
+
   const value = useMemo(
     () => ({
       token,
@@ -103,8 +118,10 @@ export function AuthProvider({ children }) {
       login,
       signup,
       logout,
+      updateUserProfile,
+      refreshUser,
     }),
-    [token, user, loading, error, login, signup, logout]
+    [token, user, loading, error, login, signup, logout, updateUserProfile, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

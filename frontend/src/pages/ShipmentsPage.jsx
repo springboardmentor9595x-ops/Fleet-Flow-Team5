@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/layout/Navbar';
 import ShipmentModal from '../components/shipments/ShipmentModal';
 import ShipmentStepper from '../components/shipments/ShipmentStepper';
 import { getShipments, updateShipmentStatus, cancelShipment, getDelayedAlerts } from '../api/shipments';
@@ -18,41 +17,58 @@ import {
   Navigation, 
   Ban, 
   Clock, 
-  CheckCircle2 
+  CheckCircle2,
+  User,
+  Edit
 } from 'lucide-react';
 import './ShipmentsPage.css';
+
+import { useSearchParams } from 'react-router-dom';
 
 export default function ShipmentsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const currentTab = searchParams.get('tab') || 'ALL';
+  const [statusFilter, setStatusFilter] = useState(currentTab);
   const [shipments, setShipments] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
   const [expandedId, setExpandedId] = useState(null);
+
+  // Sync tab with URL search param
+  const handleTabChange = (tab) => {
+    setStatusFilter(tab);
+    setSearchParams({ tab });
+  };
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedShipment, setSelectedShipment] = useState(null);
 
-  const canManage = user?.role === 'Admin';
+  const canManage = user?.role === 'Admin' || user?.role === 'FleetManager' || user?.role === 'Dispatcher';
+  const canViewAlerts = user?.role === 'Admin' || user?.role === 'FleetManager' || user?.role === 'Dispatcher';
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [sRes, aRes] = await Promise.all([
-        getShipments(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
-        getDelayedAlerts(),
-      ]);
-      setShipments(sRes.data);
-      setAlerts(aRes.data);
+      const fetchPromises = [getShipments(statusFilter !== 'ALL' ? { status: statusFilter } : {})];
+      if (canViewAlerts) {
+        fetchPromises.push(getDelayedAlerts());
+      }
+      const results = await Promise.all(fetchPromises);
+      setShipments(results[0].data);
+      if (canViewAlerts && results[1]) {
+        setAlerts(results[1].data);
+      }
     } catch (err) {
       toast.error('Failed to load shipments.');
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, canViewAlerts]);
 
   useEffect(() => {
     fetchData();
@@ -91,7 +107,8 @@ export default function ShipmentsPage() {
     const cust = (s.customer_name || '').toLowerCase();
     const src = (s.source || '').toLowerCase();
     const dst = (s.destination || '').toLowerCase();
-    return trk.includes(term) || cust.includes(term) || src.includes(term) || dst.includes(term);
+    const drv = (s.driver_name || '').toLowerCase();
+    return trk.includes(term) || cust.includes(term) || src.includes(term) || dst.includes(term) || drv.includes(term);
   });
 
   const getStatusBadge = (status) => {
@@ -106,8 +123,6 @@ export default function ShipmentsPage() {
 
   return (
     <div className="shipments-page-wrapper">
-      <Navbar />
-
       <main className="page-container">
         {/* Page Header */}
         <div className="page-header">
@@ -151,7 +166,7 @@ export default function ShipmentsPage() {
             <Search size={18} color="var(--text-dim)" />
             <input
               type="text"
-              placeholder="Search tracking #, customer, source, destination..."
+              placeholder="Search tracking #, driver, customer, source, destination..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -162,7 +177,7 @@ export default function ShipmentsPage() {
               <button
                 key={tab}
                 className={`filter-tab ${statusFilter === tab ? 'active' : ''}`}
-                onClick={() => setStatusFilter(tab)}
+                onClick={() => handleTabChange(tab)}
               >
                 {tab}
               </button>
@@ -207,6 +222,11 @@ export default function ShipmentsPage() {
                         {s.shipment_weight && <span className="weight-pill">{s.shipment_weight} kg</span>}
                       </div>
 
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                        <User size={14} color="var(--accent-primary)" />
+                        <span>{s.driver_name || 'Unassigned Driver'}</span>
+                      </div>
+
                       {getStatusBadge(s.status)}
 
                       <button className="expand-toggle-btn">
@@ -222,6 +242,13 @@ export default function ShipmentsPage() {
                       <ShipmentStepper status={s.status} isDelayed={isDelayed} />
 
                       <div className="shipment-meta-grid">
+                        <div>
+                          <span className="meta-label">Assigned Driver</span>
+                          <span className="meta-val" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <User size={13} color="var(--accent-primary)" />
+                            <strong>{s.driver_name || 'Unassigned'}</strong>
+                          </span>
+                        </div>
                         <div>
                           <span className="meta-label">Customer Contact</span>
                           <span className="meta-val">{s.customer_phone || s.customer_email || 'Not provided'}</span>
@@ -252,6 +279,17 @@ export default function ShipmentsPage() {
 
                         {canManage && s.status !== 'Delivered' && s.status !== 'Cancelled' && (
                           <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => {
+                                setSelectedShipment(s);
+                                setIsModalOpen(true);
+                              }}
+                            >
+                              <User size={14} />
+                              <span>{s.driver_id ? 'Edit / Reassign' : 'Assign Driver'}</span>
+                            </button>
+
                             <button
                               className="btn btn-primary btn-sm"
                               onClick={() => handleAdvanceStatus(s)}

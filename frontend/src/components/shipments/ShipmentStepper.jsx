@@ -24,7 +24,7 @@ export default function ShipmentStepper({ status, isDelayed = false }) {
   if (isCancelled) {
     return (
       <div className="stepper-cancelled">
-        <XCircle size={18} color="#fb7185" />
+        <XCircle size={18} color="#F87171" />
         <span>Shipment Cancelled</span>
       </div>
     );

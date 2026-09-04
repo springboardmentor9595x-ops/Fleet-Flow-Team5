@@ -11,3 +11,6 @@ python-multipart
 pydantic[email]
 httpx
 redis
+celery
+reportlab
+openpyxl

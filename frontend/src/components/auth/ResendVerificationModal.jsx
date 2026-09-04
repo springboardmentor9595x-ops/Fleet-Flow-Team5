@@ -45,8 +45,8 @@ export default function ResendVerificationModal({ isOpen, onClose, initialEmail 
           <div className="modal-icon-badge">
             <Mail size={24} />
           </div>
-          <h3>Resend Verification Email</h3>
-          <p>Enter your account email address and we will send you a new verification link.</p>
+          <h3>Resend Verification Code</h3>
+          <p>Enter your account email address and we will send you a new 6-digit verification code.</p>
         </div>
 
         {status && (
@@ -77,7 +77,7 @@ export default function ResendVerificationModal({ isOpen, onClose, initialEmail 
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={loading || !email.trim()}>
-              {loading ? 'Sending...' : 'Send Verification Email'}
+              {loading ? 'Sending...' : 'Send Code'}
               {!loading && <ArrowRight size={16} />}
             </button>
           </div>

@@ -1,0 +1,48 @@
+.fleet-dash-wrapper {
+  min-height: 100vh;
+  background-color: var(--bg-dark, #0b0e1a);
+  color: var(--text-main, #f8fafc);
+}
+
+.fleet-dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.charts-grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+.chart-card {
+  padding: 20px;
+  background: var(--bg-card, #141830);
+  border: 1px solid var(--border-color, #222948);
+  border-radius: 12px;
+}
+
+.chart-header {
+  margin-bottom: 16px;
+}
+
+.chart-header h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.no-data-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.9rem;
+  font-style: italic;
+  background: rgba(15, 19, 38, 0.5);
+  border: 1px dashed var(--border-color, #222948);
+  border-radius: 8px;
+}

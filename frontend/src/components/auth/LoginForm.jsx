@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
-import { AlertCircle, Mail } from 'lucide-react';
+import { AlertCircle, Mail, Shield } from 'lucide-react';
 import InputField from './InputField';
 import GradientButton from './GradientButton';
 import ResendVerificationModal from './ResendVerificationModal';
@@ -13,7 +13,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function LoginForm() {
   const navigate = useNavigate();
   const { login, loading } = useAuth();
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '', role: 'Admin' });
   const [error, setError] = useState('');
   const [isUnverified, setIsUnverified] = useState(false);
   const [showResendModal, setShowResendModal] = useState(false);
@@ -25,6 +25,7 @@ function LoginForm() {
 
     const trimmedEmail = (form.email || '').trim();
     const password = form.password || '';
+    const selectedRole = form.role || 'Admin';
 
     // 1. Missing email validation
     if (!trimmedEmail) {
@@ -45,7 +46,7 @@ function LoginForm() {
     }
 
     try {
-      await login(trimmedEmail.toLowerCase(), password);
+      await login(trimmedEmail.toLowerCase(), password, selectedRole);
       toast.success('Signed in successfully.');
       navigate('/dashboard');
     } catch (err) {
@@ -89,9 +90,9 @@ function LoginForm() {
                 <button
                   type="button"
                   className="resend-inline-btn"
-                  onClick={() => setShowResendModal(true)}
+                  onClick={() => navigate(`/verify-email?email=${encodeURIComponent(form.email.trim())}`)}
                 >
-                  <Mail size={14} /> Resend verification email
+                  <Mail size={14} /> Enter Verification Code
                 </button>
               )}
             </div>
@@ -107,6 +108,27 @@ function LoginForm() {
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
 
+        <label className="input-field">
+          <span className="input-label">Role</span>
+          <div className="input-wrapper">
+            <span className="input-icon">
+              <Shield size={18} />
+            </span>
+            <select
+              name="role"
+              id="signin-role"
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              className="input-control select-control"
+            >
+              <option value="Admin">Admin</option>
+              <option value="FleetManager">Fleet Manager</option>
+              <option value="Dispatcher">Dispatcher</option>
+              <option value="Driver">Driver</option>
+            </select>
+          </div>
+        </label>
+
         <InputField
           label="Password"
           name="password"
@@ -120,9 +142,9 @@ function LoginForm() {
           <button
             type="button"
             className="link-secondary text-btn"
-            onClick={() => setShowResendModal(true)}
+            onClick={() => navigate(form.email.trim() ? `/verify-email?email=${encodeURIComponent(form.email.trim())}` : '/verify-email')}
           >
-            Didn't receive email? Resend verification
+            Verify Email / Enter Code
           </button>
           <a
             href="#forgot-password"
@@ -138,11 +160,6 @@ function LoginForm() {
         </GradientButton>
       </form>
 
-      <ResendVerificationModal
-        isOpen={showResendModal}
-        onClose={() => setShowResendModal(false)}
-        initialEmail={form.email}
-      />
     </>
   );
 }

@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db, require_roles, require_admin
 from app.crud import trip as trip_crud
+from app.crud.notification import notify_route_recalculated
+from app.models.driver import Driver
 from app.models.user import User
 from app.schemas.trip import (
     RouteCalculateRequest,
@@ -100,13 +102,13 @@ def get_trip(
     "/",
     response_model=TripRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_roles("Admin", "FleetManager", "Dispatcher"))],
 )
 async def create_trip_endpoint(
     trip_in: TripCreate,
     db: Session = Depends(get_db),
 ) -> TripRead:
-    """Create/schedule a trip with route optimization. Restricted strictly to Admin."""
+    """Create/schedule a trip with route optimization. Allowed for Admin, FleetManager, Dispatcher."""
     if trip_in.start_lat is None or trip_in.start_lng is None:
         trip_in.start_lat, trip_in.start_lng = await geocode_address(trip_in.start_location)
 
@@ -129,19 +131,33 @@ async def create_trip_endpoint(
 @router.post(
     "/{trip_id}/start",
     response_model=TripActionResponse,
-    dependencies=[Depends(require_admin)],
 )
 def start_trip_endpoint(
     trip_id: UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("Admin", "FleetManager", "Driver")),
 ) -> TripActionResponse:
-    """Start trip: sets status In Transit, marks vehicle & driver unavailable, records start time. Restricted strictly to Admin."""
-    trip = trip_crud.start_trip(db, trip_id)
+    """Start trip: sets status In Transit, marks vehicle & driver unavailable. Allowed for Admin, FleetManager, or assigned Driver."""
+    trip = trip_crud.get_trip_by_id(db, trip_id)
     if not trip:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Trip not found",
         )
+
+    if current_user.role == "Driver":
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        is_owner = (
+            (driver and trip.driver_id == driver.driver_id)
+            or trip.driver_id == current_user.user_id
+        )
+        if not is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: Drivers can only start their own assigned trips.",
+            )
+
+    trip = trip_crud.start_trip(db, trip_id)
     return TripActionResponse(
         trip_id=trip.trip_id,
         status=trip.status,
@@ -153,19 +169,33 @@ def start_trip_endpoint(
 @router.post(
     "/{trip_id}/end",
     response_model=TripActionResponse,
-    dependencies=[Depends(require_admin)],
 )
 def end_trip_endpoint(
     trip_id: UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("Admin", "FleetManager", "Driver")),
 ) -> TripActionResponse:
-    """End trip: records actual distance/time, sets shipment to Delivered, frees vehicle/driver. Restricted strictly to Admin."""
-    trip = trip_crud.end_trip(db, trip_id)
+    """End trip: records actual distance/time, sets shipment to Delivered, frees vehicle/driver. Allowed for Admin, FleetManager, or assigned Driver."""
+    trip = trip_crud.get_trip_by_id(db, trip_id)
     if not trip:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Trip not found",
         )
+
+    if current_user.role == "Driver":
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        is_owner = (
+            (driver and trip.driver_id == driver.driver_id)
+            or trip.driver_id == current_user.user_id
+        )
+        if not is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: Drivers can only end their own assigned trips.",
+            )
+
+    trip = trip_crud.end_trip(db, trip_id)
     return TripActionResponse(
         trip_id=trip.trip_id,
         status=trip.status,
@@ -177,14 +207,14 @@ def end_trip_endpoint(
 @router.post(
     "/{trip_id}/recalculate",
     response_model=TripRead,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_roles("Admin", "FleetManager", "Dispatcher"))],
 )
 async def recalculate_route(
     trip_id: UUID,
     req: TripRecalculateRequest,
     db: Session = Depends(get_db),
 ) -> TripRead:
-    """Trigger route recalculation from current live GPS coordinate to destination. Restricted strictly to Admin."""
+    """Trigger route recalculation from current live GPS coordinate to destination. Allowed for Admin, FleetManager, and Dispatcher."""
     trip = trip_crud.get_trip_by_id(db, trip_id)
     if not trip or not trip.dest_lat or not trip.dest_lng:
         raise HTTPException(
@@ -205,6 +235,9 @@ async def recalculate_route(
     db.add(trip)
     db.commit()
     db.refresh(trip)
+
+    notify_route_recalculated(db, trip)
+
     return trip
 
 

@@ -1,0 +1,171 @@
+.users-page-wrapper {
+  min-height: 100vh;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+}
+
+.users-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.users-stats-grid .stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.users-stats-grid .stat-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(34, 211, 238, 0.4);
+}
+
+.stat-icon.admin-icon {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+}
+
+.stat-icon.manager-icon {
+  background: rgba(34, 211, 238, 0.15);
+  color: #22d3ee;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+}
+
+.stat-icon.dispatcher-icon {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+}
+
+.stat-icon.driver-icon {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+}
+
+.user-cell-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar-sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(99, 102, 241, 0.3));
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #22d3ee;
+  font-size: 0.9rem;
+}
+
+.user-name-title {
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: 0.95rem;
+}
+
+.user-id-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: block;
+}
+
+.role-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.role-badge-pill.role-admin {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.role-badge-pill.role-fleetmanager {
+  background: rgba(34, 211, 238, 0.15);
+  color: #22d3ee;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+}
+
+.role-badge-pill.role-dispatcher {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.role-badge-pill.role-driver {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.role-select-box {
+  background: rgba(11, 14, 26, 0.8);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.role-select-box:focus {
+  border-color: var(--primary-accent);
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2);
+}
+
+.role-select-box:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.verification-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+
+.verification-pill.verified {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+}
+
+.verification-pill.unverified {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+}

@@ -14,13 +14,13 @@
 .route-selector-heading h3 {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .route-notice-tag {
   font-size: 0.75rem;
   color: var(--text-dim);
-  background: #0f172a;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   padding: 3px 8px;
   border-radius: var(--radius-sm);
@@ -33,7 +33,7 @@
 }
 
 .route-card {
-  background: #0f172a;
+  background: var(--bg-input);
   border: 2px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 16px;
@@ -46,14 +46,14 @@
 }
 
 .route-card:hover {
-  border-color: #475569;
+  border-color: #343B60;
   transform: translateY(-2px);
 }
 
 .route-card.selected {
   border-color: var(--accent-primary);
-  background: rgba(59, 130, 246, 0.08);
-  box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
+  background: rgba(34, 211, 238, 0.08);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.25);
 }
 
 .route-card-top {
@@ -79,7 +79,7 @@
   gap: 4px;
   font-size: 0.72rem;
   font-weight: 700;
-  color: #fff;
+  color: #0B0E1A;
   background: var(--accent-primary);
   padding: 3px 8px;
   border-radius: 9999px;
@@ -88,7 +88,7 @@
 .route-label {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
   margin-bottom: 4px;
 }
 
@@ -104,10 +104,11 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
-  background: rgba(30, 41, 59, 0.5);
+  background: var(--bg-surface);
   padding: 10px 8px;
   border-radius: var(--radius-md);
   margin-bottom: 12px;
+  border: 1px solid var(--border-color);
 }
 
 .metric-item {
@@ -127,7 +128,7 @@
 .metric-main {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
   margin-top: 2px;
 }
 
@@ -150,11 +151,11 @@
 }
 
 .traffic-tag {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  color: #FBBF24;
 }
 
 .fuel-tag {
-  background: rgba(16, 185, 129, 0.12);
-  color: #34d399;
+  background: rgba(52, 211, 153, 0.15);
+  color: #34D399;
 }

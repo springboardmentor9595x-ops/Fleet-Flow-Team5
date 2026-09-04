@@ -13,15 +13,23 @@ SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
+import bcrypt
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    pwd_bytes = password.encode('utf-8')
+    if len(pwd_bytes) > 72:
+        pwd_bytes = pwd_bytes[:72]
+    return bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        pwd_bytes = plain_password.encode('utf-8')
+        if len(pwd_bytes) > 72:
+            pwd_bytes = pwd_bytes[:72]
+        return bcrypt.checkpw(pwd_bytes, hashed_password.encode('utf-8'))
+    except Exception:
+        return False
 
 
 def create_access_token(subject: str | Any, expires_delta: timedelta | None = None) -> str:
@@ -33,12 +41,18 @@ def create_access_token(subject: str | Any, expires_delta: timedelta | None = No
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def generate_verification_code() -> str:
+    """Generate a cryptographically secure 6-digit numeric verification code."""
+    return f"{secrets.randbelow(1000000):06d}"
+
+
 def generate_verification_token() -> str:
-    """Generate a cryptographically secure, URL-safe random token."""
-    return secrets.token_urlsafe(32)
+    """Alias for code generation."""
+    return generate_verification_code()
 
 
 def hash_verification_token(raw_token: str) -> str:
-    """Compute SHA-256 hex digest of a raw verification token."""
+    """Compute SHA-256 hex digest of a raw verification code or token."""
     return hashlib.sha256(raw_token.strip().encode("utf-8")).hexdigest()
+
 

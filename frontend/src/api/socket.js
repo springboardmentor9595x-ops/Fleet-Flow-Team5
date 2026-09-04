@@ -1,4 +1,10 @@
+import api from './axios';
+
 const WS_BASE_URL = import.meta.env.VITE_API_URL?.replace(/^http/, 'ws') || 'ws://127.0.0.1:8000';
+
+export function getLatestLocations() {
+  return api.get('/realtime/latest-locations');
+}
 
 export function createLocationSocket(onMessage, onOpen, onClose, onError) {
   let isClosedManually = false;

@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { createShipment, updateShipment } from '../../api/shipments';
 import { getVehicles } from '../../api/vehicles';
+import { getDrivers } from '../../api/drivers';
 import { toast } from 'react-toastify';
 import { X, Package, MapPin, Truck, Calendar, User } from 'lucide-react';
 
 export default function ShipmentModal({ isOpen, onClose, onSaved, shipment = null }) {
   const isEdit = Boolean(shipment);
   const [vehicles, setVehicles] = useState([]);
+  const [drivers, setDrivers] = useState([]);
+  const [fetchingDrivers, setFetchingDrivers] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -17,13 +20,29 @@ export default function ShipmentModal({ isOpen, onClose, onSaved, shipment = nul
     customer_email: '',
     shipment_weight: '',
     vehicle_id: '',
+    driver_id: '',
     expected_delivery_time: '',
     notes: '',
   });
 
   useEffect(() => {
     if (isOpen) {
-      getVehicles().then((res) => setVehicles(res.data)).catch(() => {});
+      setFetchingDrivers(true);
+      Promise.all([
+        getVehicles().then((res) => setVehicles(res.data || [])).catch(() => {}),
+        getDrivers().then((res) => {
+          const list = res.data || [];
+          setDrivers(list);
+          const activeList = list.filter((d) => (d.status || '').toLowerCase() === 'active');
+          if (!shipment && activeList.length > 0) {
+            setFormData((prev) => ({
+              ...prev,
+              driver_id: prev.driver_id || activeList[0].driver_id,
+            }));
+          }
+        }).catch(() => {}),
+      ]).finally(() => setFetchingDrivers(false));
+
       if (shipment) {
         setFormData({
           source: shipment.source || '',
@@ -33,6 +52,7 @@ export default function ShipmentModal({ isOpen, onClose, onSaved, shipment = nul
           customer_email: shipment.customer_email || '',
           shipment_weight: shipment.shipment_weight ?? '',
           vehicle_id: shipment.vehicle_id || '',
+          driver_id: shipment.driver_id || '',
           expected_delivery_time: shipment.expected_delivery_time
             ? new Date(shipment.expected_delivery_time).toISOString().slice(0, 16)
             : '',
@@ -47,6 +67,7 @@ export default function ShipmentModal({ isOpen, onClose, onSaved, shipment = nul
           customer_email: '',
           shipment_weight: '',
           vehicle_id: '',
+          driver_id: '',
           expected_delivery_time: '',
           notes: '',
         });
@@ -55,6 +76,10 @@ export default function ShipmentModal({ isOpen, onClose, onSaved, shipment = nul
   }, [isOpen, shipment]);
 
   if (!isOpen) return null;
+
+  const activeDrivers = drivers.filter(
+    (d) => ['active', 'available'].includes((d.status || '').toLowerCase())
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -66,6 +91,10 @@ export default function ShipmentModal({ isOpen, onClose, onSaved, shipment = nul
       toast.error('Customer name is required.');
       return;
     }
+    if (!formData.driver_id) {
+      toast.error('Please select a driver.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -73,6 +102,7 @@ export default function ShipmentModal({ isOpen, onClose, onSaved, shipment = nul
         ...formData,
         shipment_weight: formData.shipment_weight ? parseFloat(formData.shipment_weight) : 0,
         vehicle_id: formData.vehicle_id ? formData.vehicle_id : null,
+        driver_id: formData.driver_id ? formData.driver_id : null,
         expected_delivery_time: formData.expected_delivery_time
           ? new Date(formData.expected_delivery_time).toISOString()
           : null,
@@ -168,21 +198,56 @@ export default function ShipmentModal({ isOpen, onClose, onSaved, shipment = nul
             </div>
           </div>
 
-          {/* Weight & Vehicle Assignment */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+          {/* Weight & Vehicle / Driver Assignment */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
             <div className="form-group">
               <label className="form-label">Cargo Weight (kg)</label>
               <input
                 type="number"
                 className="form-input"
-                placeholder="Enter cargo weight (kg)"
+                placeholder="Enter weight (kg)"
                 value={formData.shipment_weight}
                 onChange={(e) => setFormData({ ...formData, shipment_weight: e.target.value })}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Assign Fleet Vehicle</label>
+              <label className="form-label">
+                <User size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                Driver *
+              </label>
+              <select
+                className="form-select"
+                value={formData.driver_id}
+                onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
+                required
+                disabled={fetchingDrivers}
+              >
+                <option value="">
+                  {fetchingDrivers
+                    ? '-- Loading Drivers... --'
+                    : activeDrivers.length === 0
+                    ? '-- No available drivers. --'
+                    : '-- Select Driver --'}
+                </option>
+                {activeDrivers.map((d) => (
+                  <option key={d.driver_id} value={d.driver_id}>
+                    {d.full_name || 'Driver'} {d.license_number ? `(${d.license_number})` : ''} - {d.email || d.status}
+                  </option>
+                ))}
+              </select>
+              {activeDrivers.length === 0 && !fetchingDrivers && (
+                <span style={{ fontSize: '0.75rem', color: '#ef4444', marginTop: '2px', display: 'block' }}>
+                  No available drivers.
+                </span>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                <Truck size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                Assign Fleet Vehicle
+              </label>
               <select
                 className="form-select"
                 value={formData.vehicle_id}

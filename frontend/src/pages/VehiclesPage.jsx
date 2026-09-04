@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Navbar from '../components/layout/Navbar';
 import VehicleModal from '../components/vehicles/VehicleModal';
 import { getVehicles, getVehicleStats, deleteVehicle } from '../api/vehicles';
 import { useAuth } from '../context/AuthContext';
@@ -18,35 +17,49 @@ import {
 } from 'lucide-react';
 import './VehiclesPage.css';
 
+import { useSearchParams } from 'react-router-dom';
+
 export default function VehiclesPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const currentTab = searchParams.get('tab') || 'ALL';
+  const [statusFilter, setStatusFilter] = useState(currentTab);
   const [vehicles, setVehicles] = useState([]);
   const [stats, setStats] = useState({ total: 0, available: 0, in_transit: 0, maintenance: 0, out_of_service: 0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  
+
+  const handleTabChange = (tabId) => {
+    setStatusFilter(tabId);
+    setSearchParams({ tab: tabId });
+  };
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
 
-  const canManage = user?.role === 'Admin';
+  const canManage = user?.role === 'Admin' || user?.role === 'FleetManager';
+  const canViewStats = user?.role === 'Admin' || user?.role === 'FleetManager';
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [vRes, sRes] = await Promise.all([
-        getVehicles(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
-        getVehicleStats(),
-      ]);
-      setVehicles(vRes.data);
-      setStats(sRes.data);
+      const fetchPromises = [getVehicles(statusFilter !== 'ALL' ? { status: statusFilter } : {})];
+      if (canViewStats) {
+        fetchPromises.push(getVehicleStats());
+      }
+      const results = await Promise.all(fetchPromises);
+      setVehicles(results[0].data);
+      if (canViewStats && results[1]) {
+        setStats(results[1].data);
+      }
     } catch (err) {
       toast.error('Failed to load fleet vehicles.');
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, canViewStats]);
 
   useEffect(() => {
     fetchData();
@@ -82,8 +95,6 @@ export default function VehiclesPage() {
 
   return (
     <div className="vehicles-page-wrapper">
-      <Navbar />
-
       <main className="page-container">
         {/* Page Header */}
         <div className="page-header">
@@ -108,48 +119,50 @@ export default function VehiclesPage() {
           )}
         </div>
 
-        {/* Status Count Metric Cards */}
-        <div className="fleet-stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon total-icon">
-              <Truck size={24} />
+        {/* Status Count Metric Cards (Admin & FleetManager) */}
+        {canViewStats && (
+          <div className="fleet-stats-grid">
+            <div className="stat-card">
+              <div className="stat-icon total-icon">
+                <Truck size={24} />
+              </div>
+              <div className="stat-info">
+                <span className="stat-label">Total Fleet</span>
+                <span className="stat-value">{stats.total}</span>
+              </div>
             </div>
-            <div className="stat-info">
-              <span className="stat-label">Total Fleet</span>
-              <span className="stat-value">{stats.total}</span>
-            </div>
-          </div>
 
-          <div className="stat-card">
-            <div className="stat-icon avail-icon">
-              <CheckCircle2 size={24} />
+            <div className="stat-card">
+              <div className="stat-icon avail-icon">
+                <CheckCircle2 size={24} />
+              </div>
+              <div className="stat-info">
+                <span className="stat-label">Available</span>
+                <span className="stat-value">{stats.available}</span>
+              </div>
             </div>
-            <div className="stat-info">
-              <span className="stat-label">Available</span>
-              <span className="stat-value">{stats.available}</span>
-            </div>
-          </div>
 
-          <div className="stat-card">
-            <div className="stat-icon transit-icon">
-              <Clock size={24} />
+            <div className="stat-card">
+              <div className="stat-icon transit-icon">
+                <Clock size={24} />
+              </div>
+              <div className="stat-info">
+                <span className="stat-label">In Transit</span>
+                <span className="stat-value">{stats.in_transit}</span>
+              </div>
             </div>
-            <div className="stat-info">
-              <span className="stat-label">In Transit</span>
-              <span className="stat-value">{stats.in_transit}</span>
-            </div>
-          </div>
 
-          <div className="stat-card">
-            <div className="stat-icon maint-icon">
-              <Wrench size={24} />
-            </div>
-            <div className="stat-info">
-              <span className="stat-label">Maintenance</span>
-              <span className="stat-value">{stats.maintenance}</span>
+            <div className="stat-card">
+              <div className="stat-icon maint-icon">
+                <Wrench size={24} />
+              </div>
+              <div className="stat-info">
+                <span className="stat-label">Maintenance</span>
+                <span className="stat-value">{stats.maintenance}</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Filter and Search Bar */}
         <div className="table-controls-card ff-card">
@@ -164,11 +177,11 @@ export default function VehiclesPage() {
           </div>
 
           <div className="status-filter-tabs">
-            {['ALL', 'Available', 'In Transit', 'Maintenance', 'Out of Service'].map((tab) => (
+            {['ALL', 'Available', 'Assigned', 'In Transit', 'Maintenance'].map((tab) => (
               <button
                 key={tab}
                 className={`filter-tab ${statusFilter === tab ? 'active' : ''}`}
-                onClick={() => setStatusFilter(tab)}
+                onClick={() => handleTabChange(tab)}
               >
                 {tab}
               </button>

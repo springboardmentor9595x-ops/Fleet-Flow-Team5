@@ -23,7 +23,7 @@
 .section-title-row h2 {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .form-grid-3 {
@@ -48,11 +48,11 @@
 .section-header-bar h2 {
   font-size: 1.35rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .count-pill {
-  background: #0f172a;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   color: var(--text-muted);
   font-size: 0.8rem;
@@ -68,7 +68,7 @@
 }
 
 .trip-route-cell strong {
-  color: #fff;
+  color: var(--text-main);
   font-size: 0.95rem;
 }
 
@@ -86,7 +86,7 @@
 
 .trip-metrics-cell span {
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .duration-sub {
@@ -99,7 +99,7 @@
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--accent-cyan);
-  background: #0f172a;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   padding: 3px 8px;
   border-radius: 4px;

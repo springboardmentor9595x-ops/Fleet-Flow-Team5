@@ -1,19 +1,88 @@
 import json
 import logging
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 import httpx
+import redis.asyncio as aioredis
 from app.config import settings
 
 logger = logging.getLogger("fleetflow.routing")
 
-# In-memory route and geocode cache fallback
-_memory_cache: dict[str, tuple[float, Any]] = {}
 CACHE_TTL_SECONDS = 600  # 10 minutes
+
+# Async Redis client singleton for routing service
+_redis_client: aioredis.Redis | None = None
+_memory_fallback_cache: dict[str, tuple[float, Any]] = {}
+
+
+async def _get_redis_client() -> aioredis.Redis | None:
+    """Returns or initializes the async Redis client for route and geocode caching."""
+    global _redis_client
+    if _redis_client is None:
+        try:
+            _redis_client = aioredis.from_url(
+                settings.REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=2.0,
+            )
+            await _redis_client.ping()
+        except Exception as exc:
+            logger.warning(f"Redis connection failed ({exc}). Operating with in-memory fallback.")
+            _redis_client = None
+    return _redis_client
+
+
+async def _get_cached_json(cache_key: str) -> Any | None:
+    """Fetch and deserialize JSON from Redis cache (with fallback)."""
+    try:
+        client = await _get_redis_client()
+        if client:
+            cached_val = await client.get(cache_key)
+            if cached_val:
+                return json.loads(cached_val)
+    except Exception as exc:
+        logger.warning(f"Redis cache GET failed for '{cache_key}': {exc}. Trying fallback.")
+
+    # In-memory fallback if Redis is unreachable
+    now = datetime.now(timezone.utc).timestamp()
+    if cache_key in _memory_fallback_cache:
+        ts, data = _memory_fallback_cache[cache_key]
+        if now - ts < CACHE_TTL_SECONDS:
+            return data
+    return None
+
+
+async def _set_cached_json(cache_key: str, data: Any, ttl_seconds: int = CACHE_TTL_SECONDS) -> None:
+    """Serialize and store JSON in Redis cache with TTL (with fallback)."""
+    # Always keep in-memory fallback updated
+    now = datetime.now(timezone.utc).timestamp()
+    _memory_fallback_cache[cache_key] = (now, data)
+
+    try:
+        client = await _get_redis_client()
+        if client:
+            serialized = json.dumps(
+                data,
+                default=lambda o: o.isoformat() if isinstance(o, (datetime, date)) else str(o),
+            )
+            await client.setex(cache_key, ttl_seconds, serialized)
+    except Exception as exc:
+        logger.warning(f"Redis cache SET failed for '{cache_key}': {exc}.")
 
 # Common predefined coordinate registry for instantaneous fallback
 CITY_COORDINATES: dict[str, tuple[float, float]] = {
+    "visakhapatnam": (17.6868, 83.2185),
+    "vizag": (17.6868, 83.2185),
+    "tirupati": (13.6288, 79.4192),
+    "hyderabad": (17.3850, 78.4867),
+    "vijayawada": (16.5062, 80.6480),
+    "ongole": (15.5057, 80.0499),
+    "chennai": (13.0827, 80.2707),
+    "bengaluru": (12.9716, 77.5946),
+    "bangalore": (12.9716, 77.5946),
+    "mumbai": (19.0760, 72.8777),
+    "delhi": (28.6139, 77.2090),
     "san francisco": (37.7749, -122.4194),
     "oakland": (37.8044, -122.2712),
     "san jose": (37.3382, -121.8863),
@@ -23,6 +92,8 @@ CITY_COORDINATES: dict[str, tuple[float, float]] = {
     "portland": (45.5152, -122.6784),
     "new york": (40.7128, -74.0060),
     "chicago": (41.8781, -87.6298),
+    "detroit": (42.3314, -83.0458),
+    "kerala": (10.8505, 76.2711),
     "dallas": (32.7767, -96.7970),
     "houston": (29.7604, -95.3698),
     "austin": (30.2672, -97.7431),
@@ -82,13 +153,11 @@ async def geocode_address(address: str) -> tuple[float, float]:
         if key in clean_addr:
             return coords
 
-    # Check cache
+    # Check Redis cache
     cache_key = f"geo:{clean_addr}"
-    now = datetime.now(timezone.utc).timestamp()
-    if cache_key in _memory_cache:
-        ts, data = _memory_cache[cache_key]
-        if now - ts < CACHE_TTL_SECONDS:
-            return data
+    cached_geo = await _get_cached_json(cache_key)
+    if cached_geo and isinstance(cached_geo, (list, tuple)) and len(cached_geo) == 2:
+        return float(cached_geo[0]), float(cached_geo[1])
 
     url = f"{settings.NOMINATIM_BASE_URL.rstrip('/')}/search"
     headers = {"User-Agent": "FleetFlow-FleetManagement/2.0"}
@@ -102,7 +171,7 @@ async def geocode_address(address: str) -> tuple[float, float]:
                 if results and len(results) > 0:
                     lat = float(results[0]["lat"])
                     lon = float(results[0]["lon"])
-                    _memory_cache[cache_key] = (now, (lat, lon))
+                    await _set_cached_json(cache_key, [lat, lon], ttl_seconds=CACHE_TTL_SECONDS)
                     return lat, lon
     except Exception as exc:
         logger.warning(f"Nominatim geocoding failed for '{address}': {exc}.")
@@ -143,11 +212,16 @@ async def calculate_all_route_options(
 ) -> list[dict[str, Any]]:
     """Calculates 4 route options: Fastest, Shortest, Traffic-Avoidance, Fuel-Efficient."""
     cache_key = f"route:{start_lat:.4f},{start_lng:.4f}->{dest_lat:.4f},{dest_lng:.4f}"
-    now_ts = datetime.now(timezone.utc).timestamp()
-    if cache_key in _memory_cache:
-        ts, data = _memory_cache[cache_key]
-        if now_ts - ts < CACHE_TTL_SECONDS:
-            return data
+    cached_routes = await _get_cached_json(cache_key)
+    if cached_routes and isinstance(cached_routes, list):
+        # Restore ISO ETA strings to datetime objects
+        for r in cached_routes:
+            if "eta" in r and isinstance(r["eta"], str):
+                try:
+                    r["eta"] = datetime.fromisoformat(r["eta"])
+                except Exception:
+                    pass
+        return cached_routes
 
     osrm_data = await fetch_osrm_route(start_lat, start_lng, dest_lat, dest_lng)
 
@@ -255,7 +329,7 @@ async def calculate_all_route_options(
         },
     ]
 
-    _memory_cache[cache_key] = (now_ts, routes)
+    await _set_cached_json(cache_key, routes, ttl_seconds=CACHE_TTL_SECONDS)
     return routes
 
 
@@ -266,16 +340,30 @@ def compute_live_eta(
     dest_lng: float,
     current_speed_kmh: float = 0.0,
 ) -> dict[str, Any]:
-    """Calculates remaining distance, duration and live ETA from vehicle's current location."""
-    remaining_km = round(haversine_distance(current_lat, current_lng, dest_lat, dest_lng) * 1.25, 2)
-    effective_speed = max(current_speed_kmh, 45.0)  # Default fallback speed 45 km/h
-    remaining_minutes = round((remaining_km / effective_speed) * 60.0, 1)
+    """Calculates remaining distance, duration and live ETA from vehicle's current location with second-level precision."""
+    remaining_km = round(haversine_distance(current_lat, current_lng, dest_lat, dest_lng) * 1.25, 3)
+
+    # Realistic speed handling: if stopped or crawling (< 5 km/h), use typical urban baseline speed (30 km/h)
+    if current_speed_kmh < 5.0:
+        effective_speed = 30.0
+    else:
+        effective_speed = current_speed_kmh
+
+    # Duration in total seconds (second-precision kinematics)
+    remaining_seconds = int((remaining_km / effective_speed) * 3600)
+
+    # If vehicle has not arrived (> 50m away), keep a minimum buffer of 15 seconds
+    if remaining_km > 0.05 and remaining_seconds < 15:
+        remaining_seconds = 15
+
+    remaining_minutes = round(remaining_seconds / 60.0, 1)
     now = datetime.now(timezone.utc)
-    eta = now + timedelta(minutes=remaining_minutes)
+    eta = now + timedelta(seconds=remaining_seconds)
 
     return {
-        "remaining_distance_km": remaining_km,
+        "remaining_distance_km": round(remaining_km, 2),
         "remaining_duration_min": remaining_minutes,
+        "remaining_duration_sec": remaining_seconds,
         "eta": eta.isoformat(),
         "is_delayed": False,
     }

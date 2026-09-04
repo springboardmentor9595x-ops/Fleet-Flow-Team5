@@ -28,9 +28,6 @@ function SignupForm() {
     role: 'Driver',
   });
   const [error, setError] = useState('');
-  const [registeredSuccess, setRegisteredSuccess] = useState(false);
-  const [showResendModal, setShowResendModal] = useState(false);
-
   const strength = passwordCriteria.filter(({ test }) => test(form.password)).length;
   const passwordsMatch = form.password === form.confirm_password;
 
@@ -65,8 +62,8 @@ function SignupForm() {
       };
 
       await signup(payload);
-      setRegisteredSuccess(true);
-      toast.success('Account created successfully!');
+      toast.success('Account created! Please enter your 6-digit verification code.');
+      navigate(`/verify-email?email=${encodeURIComponent(payload.email)}`);
     } catch (err) {
       const detail = err.response?.data?.detail;
       const message = typeof detail === 'string' ? detail : (detail?.[0]?.msg || 'Signup failed. Please try again.');
@@ -74,47 +71,6 @@ function SignupForm() {
       toast.error(message);
     }
   };
-
-  if (registeredSuccess) {
-    return (
-      <div className="signup-success-card">
-        <div className="success-icon-badge">
-          <Mail size={32} />
-        </div>
-        <h2 className="success-heading">Verify your email address</h2>
-        <p className="success-message">
-          <strong>Account created successfully. Please verify your email address to continue.</strong>
-        </p>
-        <p className="success-subtext">
-          We've dispatched a verification link to <span className="highlight-email">{form.email}</span>. Please click the link in your email to activate your account and sign in.
-        </p>
-
-        <div className="success-actions">
-          <button
-            type="button"
-            className="btn-primary-full"
-            onClick={() => navigate('/login')}
-          >
-            Go to Login <ArrowRight size={16} />
-          </button>
-          
-          <button
-            type="button"
-            className="btn-link-resend"
-            onClick={() => setShowResendModal(true)}
-          >
-            <RefreshCw size={14} /> Didn't receive the email? Resend verification
-          </button>
-        </div>
-
-        <ResendVerificationModal
-          isOpen={showResendModal}
-          onClose={() => setShowResendModal(false)}
-          initialEmail={form.email}
-        />
-      </div>
-    );
-  }
 
   return (
     <>
@@ -200,7 +156,7 @@ function SignupForm() {
                 className="criteria-bar"
                 style={{
                   width: `${(strength / passwordCriteria.length) * 100}%`,
-                  backgroundColor: strength === 5 ? '#22c55e' : strength >= 3 ? '#eab308' : '#ef4444',
+                  backgroundColor: strength === 5 ? '#34D399' : strength >= 3 ? '#FBBF24' : '#F87171',
                 }}
               />
             </div>

@@ -9,9 +9,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #FBBF24;
   padding: 4px 10px;
   border-radius: var(--radius-sm);
   font-size: 0.75rem;
@@ -44,7 +44,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0f172a;
+  background: var(--bg-input);
   border: 2px solid var(--border-color);
   color: var(--text-dim);
   transition: all 0.3s ease;
@@ -60,38 +60,38 @@
 
 /* Completed Step */
 .step-completed .step-icon-wrapper {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: #10b981;
-  color: #34d399;
+  background: rgba(52, 211, 153, 0.2);
+  border-color: #34D399;
+  color: #34D399;
 }
 
 .step-completed .step-label {
-  color: #34d399;
+  color: #34D399;
 }
 
 /* Current Step */
 .step-current .step-icon-wrapper {
-  background: rgba(59, 130, 246, 0.25);
-  border-color: #3b82f6;
-  color: #60a5fa;
-  box-shadow: 0 0 14px rgba(59, 130, 246, 0.5);
+  background: rgba(34, 211, 238, 0.25);
+  border-color: #22D3EE;
+  color: #22D3EE;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.5);
   transform: scale(1.1);
 }
 
 .step-current .step-label {
-  color: #fff;
+  color: var(--text-main);
   font-weight: 700;
 }
 
 .step-current.step-delayed .step-icon-wrapper {
-  background: rgba(245, 158, 11, 0.25);
-  border-color: #f59e0b;
-  color: #fbbf24;
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.5);
+  background: rgba(251, 191, 36, 0.25);
+  border-color: #FBBF24;
+  color: #FBBF24;
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.5);
 }
 
 .step-current.step-delayed .step-label {
-  color: #fbbf24;
+  color: #FBBF24;
 }
 
 /* Step Connector Line */
@@ -107,16 +107,16 @@
 }
 
 .connector-completed {
-  background: #10b981;
+  background: #34D399;
 }
 
 .stepper-cancelled {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(244, 63, 94, 0.1);
-  border: 1px solid rgba(244, 63, 94, 0.25);
-  color: #fb7185;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  color: #F87171;
   padding: 8px 14px;
   border-radius: var(--radius-md);
   font-size: 0.82rem;

@@ -24,7 +24,7 @@
 
 .stat-card:hover {
   transform: translateY(-2px);
-  border-color: #475569;
+  border-color: #343B60;
 }
 
 .stat-icon {
@@ -37,23 +37,23 @@
 }
 
 .total-icon {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
+  background: rgba(34, 211, 238, 0.15);
+  color: #22D3EE;
 }
 
 .avail-icon {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+  background: rgba(52, 211, 153, 0.15);
+  color: #34D399;
 }
 
 .transit-icon {
-  background: rgba(139, 92, 246, 0.15);
-  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.15);
+  color: #A78BFA;
 }
 
 .maint-icon {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+  color: #FBBF24;
 }
 
 .stat-info {
@@ -72,7 +72,7 @@
 .stat-value {
   font-size: 1.75rem;
   font-weight: 800;
-  color: #fff;
+  color: var(--text-main);
   line-height: 1.1;
   margin-top: 4px;
 }
@@ -91,7 +91,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #0f172a;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 8px 14px;
@@ -102,7 +102,7 @@
 .search-box input {
   background: transparent;
   border: none;
-  color: #fff;
+  color: var(--text-main);
   outline: none;
   width: 100%;
   margin: 0;
@@ -129,21 +129,22 @@
 }
 
 .filter-tab:hover {
-  color: #fff;
-  background: #1e293b;
+  color: var(--text-main);
+  background: var(--bg-card-hover);
 }
 
 .filter-tab.active {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: #fff;
+  color: #0B0E1A;
+  font-weight: 700;
 }
 
 .plate-badge {
   font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 700;
-  background: #0f172a;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   padding: 4px 10px;
   border-radius: var(--radius-sm);
@@ -151,13 +152,13 @@
 }
 
 .vehicle-model-cell strong {
-  color: #fff;
+  color: var(--text-main);
 }
 
 .fuel-pill {
   font-size: 0.78rem;
   color: var(--text-muted);
-  background: #0f172a;
+  background: var(--bg-input);
   padding: 3px 8px;
   border-radius: 4px;
 }
@@ -182,21 +183,21 @@
 }
 
 .edit-btn {
-  background: rgba(59, 130, 246, 0.1);
-  color: #60a5fa;
-  border-color: rgba(59, 130, 246, 0.25);
+  background: rgba(34, 211, 238, 0.1);
+  color: #22D3EE;
+  border-color: rgba(34, 211, 238, 0.25);
 }
 
 .edit-btn:hover {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgba(34, 211, 238, 0.25);
 }
 
 .delete-btn {
-  background: rgba(244, 63, 94, 0.1);
-  color: #fb7185;
-  border-color: rgba(244, 63, 94, 0.25);
+  background: rgba(248, 113, 113, 0.1);
+  color: #F87171;
+  border-color: rgba(248, 113, 113, 0.25);
 }
 
 .delete-btn:hover {
-  background: rgba(244, 63, 94, 0.25);
+  background: rgba(248, 113, 113, 0.25);
 }

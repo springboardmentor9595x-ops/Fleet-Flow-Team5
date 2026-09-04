@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -62,6 +63,7 @@ class ShipmentRead(BaseModel):
     shipment_weight: float | None = None
     vehicle_id: UUID | None = None
     driver_id: UUID | None = None
+    driver_name: str | None = None
     status: str
     expected_delivery_time: datetime | None = None
     actual_delivery_time: datetime | None = None
@@ -79,3 +81,57 @@ class ShipmentAlert(BaseModel):
     is_delayed: bool
     delay_hours: float
     message: str
+
+
+class DriverSummary(BaseModel):
+    driver_id: UUID
+    full_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    license_number: str | None = None
+    status: str | None = None
+
+
+class VehicleSummary(BaseModel):
+    vehicle_id: UUID
+    registration_number: str
+    brand: str | None = None
+    model: str | None = None
+    vehicle_type: str | None = None
+    status: str | None = None
+
+
+class TripSummary(BaseModel):
+    trip_id: UUID
+    shipment_id: UUID | None = None
+    vehicle_id: UUID
+    driver_id: UUID | None = None
+    start_location: str | None = None
+    destination: str | None = None
+    route_type: str | None = "fastest"
+    planned_distance_km: float | None = None
+    planned_duration_min: float | None = None
+    route_geometry: Any = None
+    status: str | None = None
+
+
+class GPSTrackingSummary(BaseModel):
+    latitude: float
+    longitude: float
+    speed: float | None = 0.0
+    heading: float | None = 0.0
+    recorded_time: datetime
+
+
+class ShipmentTrackingDetail(BaseModel):
+    shipment: ShipmentRead
+    driver: DriverSummary | None = None
+    vehicle: VehicleSummary | None = None
+    trip: TripSummary | None = None
+    tracking: GPSTrackingSummary | None = None
+    remaining_distance_km: float | None = None
+    remaining_duration_min: float | None = None
+    remaining_eta_text: str | None = None
+    tracking_state: str
+    message: str
+
