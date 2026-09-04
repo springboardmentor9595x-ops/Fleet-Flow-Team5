@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+ENV/
+env/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Runtime files
+celerybeat-schedule*
+redis_server/
+
+# Temporary test/output files
+FleetFlow_Test_Cases.xlsx
+FleetFlow_Role_Separated_Test_Cases.xlsx
+FleetFlow_RBAC_Test_Results.xlsx
+FleetFlow_RBAC_Final_Regression.xlsx
+scratch/
+
+# Temporary test/cleanup scripts
+backend/clean_*.py
+backend/fix_*.py
+backend/inspect_*.py
+backend/purge_*.py
+backend/seed_*.py
+backend/verify_*.py
+
+# Local utility scripts
+backend/app/utils/repair_drivers.py
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Accidental local files
+tatus --shortcd ..
