@@ -5,8 +5,34 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _resolve_database_url() -> str:
+    raw_url = os.getenv("DATABASE_URL")
+    is_render = (
+        os.getenv("RENDER") == "true"
+        or bool(os.getenv("RENDER_SERVICE_ID"))
+        or os.getenv("ENVIRONMENT") == "production"
+    )
+
+    if not raw_url or not raw_url.strip():
+        if is_render:
+            raise RuntimeError(
+                "CRITICAL DEPLOYMENT ERROR: DATABASE_URL environment variable is missing or empty on Render! "
+                "You must configure DATABASE_URL in your Render Web Service Environment settings to point to your Render PostgreSQL database."
+            )
+        # Default local development fallback to local PostgreSQL
+        raw_url = "postgresql://fleetflow_user:fleetflow123@localhost:5432/fleetflow_db"
+
+    url = raw_url.strip()
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    return url
+
+
 class Settings:
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://fleetflow_user:fleetflow123@localhost:5432/fleetflow_db")
+    @property
+    def DATABASE_URL(self) -> str:
+        return _resolve_database_url()
+
     SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-key")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
