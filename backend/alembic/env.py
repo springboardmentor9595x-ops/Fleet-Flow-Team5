@@ -16,7 +16,10 @@ from app.models import user, driver, vehicle, shipment, trip, gps_tracking, main
 
 config = context.config
 if os.getenv("DATABASE_URL"):
-    config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
+    db_url = os.getenv("DATABASE_URL")
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    config.set_main_option("sqlalchemy.url", db_url)
 
 fileConfig(config.config_file_name)
 

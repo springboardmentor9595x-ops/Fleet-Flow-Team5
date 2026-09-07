@@ -18,14 +18,14 @@ from app.routers.shipments import router as shipments_router
 from app.routers.trips import router as trips_router
 from app.routers.users import router as users_router
 from app.routers.vehicles import router as vehicles_router
+from app.config import settings
 from app.database import Base, SessionLocal, engine
-from app.utils.repair_drivers import repair_missing_driver_profiles
 from app.utils.ws_manager import manager
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure database tables exist, repair missing driver profiles, and initialize Redis pubsub
+    # Startup: ensure database tables exist and initialize Redis pubsub
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
@@ -34,7 +34,6 @@ async def lifespan(app: FastAPI):
         db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_contact VARCHAR(100);"))
         db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo VARCHAR(500);"))
         db.commit()
-        repair_missing_driver_profiles(db)
     finally:
         db.close()
     await manager.init_redis()
@@ -48,16 +47,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+if settings.FRONTEND_URL:
+    frontend_origin = settings.FRONTEND_URL.strip().rstrip("/")
+    if frontend_origin and frontend_origin not in cors_origins:
+        cors_origins.append(frontend_origin)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
+    allow_origins=cors_origins,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
