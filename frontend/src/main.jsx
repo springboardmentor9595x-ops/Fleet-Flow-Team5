@@ -8,6 +8,8 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import ErrorBoundary from './components/common/ErrorBoundary';
 
+console.log("FleetFlow Build: 9313b29 | Branch: DurgaBhavani | Backend: https://fleet-flow-team5.onrender.com");
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
