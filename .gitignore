@@ -35,6 +35,8 @@ backend/inspect_*.py
 backend/purge_*.py
 backend/seed_*.py
 backend/verify_*.py
+backend/*.sql
+fleetflow_fixed_clean/
 
 # Local utility scripts
 backend/app/utils/repair_drivers.py
@@ -44,6 +46,5 @@ backend/app/utils/repair_drivers.py
 .idea/
 .DS_Store
 Thumbs.db
-
 # Accidental local files
 tatus --shortcd ..

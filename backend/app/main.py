@@ -19,6 +19,11 @@ from app.routers.vehicles import router as vehicles_router
 from app.utils.ws_manager import manager
 
 
+from app.config import settings
+from app.core.deps import get_db
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: attempt to initialize Redis pubsub
@@ -33,9 +38,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+cors_origins = [
+    "https://frontend-iota-eight-u24vucvutw.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+if settings.FRONTEND_URL and settings.FRONTEND_URL not in cors_origins:
+    cors_origins.append(settings.FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows Vite dev and any local host
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,3 +78,13 @@ async def root() -> dict:
     return {
         "message": "FleetFlow API is running"
     }
+
+
+@app.get("/health")
+def health_check(db: Session = Depends(get_db)) -> dict:
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        return {"status": "unhealthy", "database": str(e)}
+
