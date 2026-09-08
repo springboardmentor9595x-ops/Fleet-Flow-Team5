@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db, require_roles
 from app.crud import shipment as shipment_crud
+from app.models.driver import Driver
 from app.models.user import User
 from app.schemas.shipment import (
     ShipmentAlert,
@@ -114,13 +115,24 @@ def get_shipment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ShipmentRead:
-    """Get single shipment by ID."""
+    """Get single shipment by ID with role-based scoping."""
     shipment = shipment_crud.get_shipment_by_id(db, shipment_id)
     if not shipment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shipment not found",
         )
+    if current_user.role == "Driver":
+        driver = db.query(Driver).filter(Driver.user_id == current_user.user_id).first()
+        is_owner = (
+            (driver and shipment.driver_id == driver.driver_id)
+            or shipment.driver_id == current_user.user_id
+        )
+        if not is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: Drivers can only view their own assigned shipments.",
+            )
     return shipment_crud.build_shipment_read(db, shipment)
 
 
