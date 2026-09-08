@@ -265,12 +265,12 @@ def mark_notification_read(db: Session, notification_id: UUID, current_user: Use
     if not notif:
         return None
 
-    # Permission check: Owner can mark their own read; Admin, FleetManager, Dispatcher can mark system alerts (user_id is None)
+    # Permission check: Only owner or Admin can access/mark private notification read.
     if notif.user_id is not None and notif.user_id != current_user.user_id:
-        if current_user.role not in ["Admin", "FleetManager", "Dispatcher"]:
+        if current_user.role != "Admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access forbidden: You can only mark your own notifications as read.",
+                detail="Access forbidden: You cannot access or modify notifications belonging to another user.",
             )
 
     notif.is_read = True

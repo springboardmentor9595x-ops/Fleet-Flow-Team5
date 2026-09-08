@@ -89,12 +89,18 @@ export default function Dashboard() {
   const isDispatcher = role === 'Dispatcher';
   const isDriver = role === 'Driver';
 
-  // Exact 4 Admin Dashboard Internal Tabs Architecture
-  const roleTabs = (isAdmin || isFleetManager)
+  // Exact Dashboard Internal Tabs Architecture per Role
+  const roleTabs = isAdmin
     ? [
         { id: 'overview', label: 'Overview' },
         { id: 'logistics_dashboard', label: 'Logistics Dashboard' },
         { id: 'admin_insights', label: 'Admin Insights' },
+        { id: 'fleet_analytics', label: 'Fleet Analytics' },
+      ]
+    : isFleetManager
+    ? [
+        { id: 'overview', label: 'Overview' },
+        { id: 'logistics_dashboard', label: 'Logistics Dashboard' },
         { id: 'fleet_analytics', label: 'Fleet Analytics' },
       ]
     : isDispatcher
@@ -1117,7 +1123,7 @@ export default function Dashboard() {
         {/* ==================================================
             3. ADMIN INSIGHTS TAB (Admin & Analytics)
             ================================================== */}
-        {(isAdmin || isFleetManager) && activeTab === 'admin_insights' && (
+        {isAdmin && activeTab === 'admin_insights' && (
           <div className="tab-content-area">
             {/* Operational Summary Overview */}
             <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
@@ -1204,6 +1210,15 @@ export default function Dashboard() {
               <p style={{ color: '#94a3b8', fontSize: '0.88rem' }}>
                 Track detailed per-vehicle service history and maintenance invoices in the dedicated <Link to="/maintenance" style={{ color: '#38bdf8' }}>Maintenance Module</Link>.
               </p>
+            </div>
+          </div>
+        )}
+
+        {!isAdmin && (rawParamTab === 'admin_insights' || rawParamTab === 'admin_analytics') && (
+          <div className="tab-content-area" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
+              <h3 style={{ color: '#ef4444', marginBottom: '0.5rem' }}>Access Denied</h3>
+              <p style={{ color: '#94a3b8' }}>Admin Insights is restricted to System Administrators only. Fleet Managers and other roles are denied access.</p>
             </div>
           </div>
         )}

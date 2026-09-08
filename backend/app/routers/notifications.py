@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db
 from app.crud import notification as notification_crud
+from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.notification import NotificationRead
 
@@ -84,6 +85,38 @@ def mark_single_notification_as_read(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Notification not found or access forbidden",
         )
+    return NotificationRead(
+        notification_id=notif.notification_id,
+        user_id=notif.user_id,
+        maintenance_id=notif.maintenance_id,
+        notification_type=notif.notification_type,
+        title=notif.title,
+        message=notif.message,
+        is_read=notif.is_read,
+        sent_at=notif.sent_at,
+        created_at=notif.created_at,
+    )
+
+
+@router.get("/{notification_id}", response_model=NotificationRead)
+def get_single_notification_endpoint(
+    notification_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> NotificationRead:
+    """Fetch single notification by ID with cross-user isolation."""
+    notif = db.query(Notification).filter(Notification.notification_id == notification_id).first()
+    if not notif:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found",
+        )
+    if notif.user_id is not None and notif.user_id != current_user.user_id:
+        if current_user.role != "Admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: You cannot access notifications belonging to another user.",
+            )
     return NotificationRead(
         notification_id=notif.notification_id,
         user_id=notif.user_id,
