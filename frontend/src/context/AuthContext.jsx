@@ -21,6 +21,12 @@ export function AuthProvider({ children }) {
         return;
       }
 
+      // If user profile is already loaded in memory, do not re-fetch or clear session
+      if (user) {
+        setLoading(false);
+        return;
+      }
+
       // Skip during an active login() call — login handles its own getMe.
       if (skipRestoreRef.current) return;
 
@@ -28,17 +34,20 @@ export function AuthProvider({ children }) {
         // A persisted token is checked with /auth/me before protected content renders.
         const response = await getMe(token);
         setUser(response.data);
-      } catch {
-        localStorage.removeItem('fleetflow_token');
-        setToken(null);
-        setUser(null);
+      } catch (err) {
+        // Only invalidate session if the backend explicitly rejected the token with 401 Unauthorized
+        if (err?.response?.status === 401) {
+          localStorage.removeItem('fleetflow_token');
+          setToken(null);
+          setUser(null);
+        }
       } finally {
         setLoading(false);
       }
     }
 
     restoreSession();
-  }, [token]);
+  }, [token, user]);
 
   const login = useCallback(async (email, password, role) => {
     setError('');
