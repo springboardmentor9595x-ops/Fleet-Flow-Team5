@@ -1223,6 +1223,15 @@ export default function Dashboard() {
           </div>
         )}
 
+        {(!isAdmin && !isFleetManager) && (rawParamTab === 'fleet_analytics' || rawParamTab === 'fleet') && (
+          <div className="tab-content-area" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
+              <h3 style={{ color: '#ef4444', marginBottom: '0.5rem' }}>Access Denied</h3>
+              <p style={{ color: '#94a3b8' }}>Fleet Analytics is restricted to Administrators and Fleet Managers only. Dispatchers and Drivers are denied access.</p>
+            </div>
+          </div>
+        )}
+
         {/* ==================================================
             4. FLEET ANALYTICS TAB
             ================================================== */}
