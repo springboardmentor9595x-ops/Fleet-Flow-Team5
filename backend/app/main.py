@@ -2,11 +2,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routers.analytics import router as analytics_router
+from app.routers.attendance import router as attendance_router
 from app.routers.auth import router as auth_router
+from app.routers.drivers import router as drivers_router
 from app.routers.fuel import router as fuel_router
+from app.routers.leave_requests import router as leave_requests_router
 from app.routers.maintenance import router as maintenance_router
 from app.routers.notifications import router as notifications_router
 from app.routers.realtime import router as realtime_router
+from app.routers.reports import router as reports_router
 from app.routers.shipments import router as shipments_router
 from app.routers.trips import router as trips_router
 from app.routers.users import router as users_router
@@ -30,7 +35,6 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    
     allow_origins=["*"],  # Allows Vite dev and any local host
     allow_credentials=True,
     allow_methods=["*"],
@@ -40,11 +44,17 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth")
 app.include_router(users_router, prefix="/users")
 app.include_router(vehicles_router, prefix="/vehicles")
+app.include_router(drivers_router, prefix="/drivers")
 app.include_router(shipments_router, prefix="/shipments")
 app.include_router(trips_router, prefix="/trips")
 app.include_router(realtime_router, prefix="/realtime")
 app.include_router(maintenance_router, prefix="/maintenance")
+app.include_router(fuel_router, prefix="/fuel")
 app.include_router(fuel_router, prefix="/fuel-records")
+app.include_router(attendance_router, prefix="/attendance")
+app.include_router(leave_requests_router)
+app.include_router(reports_router)
+app.include_router(analytics_router, prefix="/analytics")
 app.include_router(notifications_router, prefix="/notifications")
 
 
