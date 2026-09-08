@@ -6,14 +6,17 @@ import { AuthProvider } from './context/AuthContext';
 import './index.css';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </BrowserRouter>
-    <ToastContainer position="top-right" autoClose={4500} newestOnTop />
+    <ErrorBoundary>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
+      <ToastContainer position="top-right" autoClose={4500} newestOnTop />
+    </ErrorBoundary>
   </React.StrictMode>
 );

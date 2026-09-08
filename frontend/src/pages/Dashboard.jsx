@@ -164,6 +164,12 @@ export default function Dashboard() {
   const [driverLeaves, setDriverLeaves] = useState([]);
   const [driverNotifications, setDriverNotifications] = useState([]);
 
+  const toArray = (val, key) => {
+    if (Array.isArray(val)) return val;
+    if (val && key && Array.isArray(val[key])) return val[key];
+    return [];
+  };
+
   // Scoped Data Fetching - Only calls authorized endpoints for active tab & role
   const fetchDashboardData = useCallback(async () => {
     if (!user) {
@@ -199,12 +205,12 @@ export default function Dashboard() {
             setUtilizationError(false);
           }
           setUtilizationLoading(false);
-          setShipments(shipRes.data || []);
-          setTrips(tripRes.data || []);
-          setAlerts(delayedRes.data || []);
-          setPendingLeaveRequests(leaveRes.data || []);
-          setMaintenanceRecords(maintRes.data || []);
-          setSystemNotifications(notifRes.data || []);
+          setShipments(toArray(shipRes.data, 'shipments'));
+          setTrips(toArray(tripRes.data, 'trips'));
+          setAlerts(toArray(delayedRes.data, 'alerts'));
+          setPendingLeaveRequests(toArray(leaveRes.data, 'leaves'));
+          setMaintenanceRecords(toArray(maintRes.data, 'records'));
+          setSystemNotifications(toArray(notifRes.data, 'notifications'));
         }
 
         // Tab 2: Logistics Dashboard
@@ -215,10 +221,10 @@ export default function Dashboard() {
             getDeliveryPerformance().catch(() => ({ data: null })),
             getDelayedAlerts().catch(() => ({ data: [] }))
           ]);
-          setShipments(shipRes.data || []);
-          setTrips(tripRes.data || []);
+          setShipments(toArray(shipRes.data, 'shipments'));
+          setTrips(toArray(tripRes.data, 'trips'));
           setDeliveryPerf(delivRes.data || null);
-          setAlerts(delayedRes.data || []);
+          setAlerts(toArray(delayedRes.data, 'alerts'));
         }
 
         // Tab 3: Admin Insights
@@ -234,8 +240,8 @@ export default function Dashboard() {
           setOperationalData(opsRes.data || null);
           setDriverPerfData(drvPerfRes.data || null);
           setMaintenanceData(maintAnalyticsRes.data || null);
-          setSystemNotifications(notifRes.data || []);
-          setPendingLeaveRequests(leaveRes.data || []);
+          setSystemNotifications(toArray(notifRes.data, 'notifications'));
+          setPendingLeaveRequests(toArray(leaveRes.data, 'leaves'));
           setDeliveryPerf(delivRes.data || null);
         }
 
@@ -256,7 +262,7 @@ export default function Dashboard() {
             getFuelRecords({ limit: 100 }).catch(() => ({ data: [] })),
             getMaintenance().catch(() => ({ data: [] }))
           ]);
-          setVehiclesList(vRes.data || []);
+          setVehiclesList(toArray(vRes.data, 'vehicles'));
           setVehicleStats(vStatsRes.data || {});
           if (utilRes?.data) {
             setUtilizationData(utilRes.data);
@@ -265,8 +271,8 @@ export default function Dashboard() {
           setUtilizationLoading(false);
           setFuelEfficiency(fuelEffRes.data || null);
           setFuelStats(fuelStatsRes.data || null);
-          setFuelRecords(fuelRecsRes.data || []);
-          setMaintenanceRecords(maintRes.data || []);
+          setFuelRecords(toArray(fuelRecsRes.data, 'records'));
+          setMaintenanceRecords(toArray(maintRes.data, 'records'));
         }
       } else if (isDispatcher) {
         if (activeTab === 'overview' || activeTab === 'logistics_dashboard') {
@@ -276,10 +282,10 @@ export default function Dashboard() {
             getDeliveryPerformance().catch(() => ({ data: null })),
             getDelayedAlerts().catch(() => ({ data: [] }))
           ]);
-          setShipments(shipRes.data || []);
-          setTrips(tripRes.data || []);
+          setShipments(toArray(shipRes.data, 'shipments'));
+          setTrips(toArray(tripRes.data, 'trips'));
           setDeliveryPerf(delivRes.data || null);
-          setAlerts(delayedRes.data || []);
+          setAlerts(toArray(delayedRes.data, 'alerts'));
         }
       } else if (isDriver) {
         const [todayAttRes, attSumRes, attHistRes, tripRes, shipRes, vehRes, leaveRes, notifRes] = await Promise.all([
@@ -294,12 +300,12 @@ export default function Dashboard() {
         ]);
         setTodayAttendance(todayAttRes?.data || null);
         setAttendanceSummary(attSumRes?.data || null);
-        setAttendanceHistory(attHistRes?.data || []);
-        setDriverTrips(tripRes?.data || []);
-        setDriverShipments(shipRes?.data || []);
-        setDriverVehicles(vehRes?.data || []);
-        setDriverLeaves(leaveRes?.data || []);
-        setDriverNotifications(notifRes?.data || []);
+        setAttendanceHistory(toArray(attHistRes?.data, 'history'));
+        setDriverTrips(toArray(tripRes?.data, 'trips'));
+        setDriverShipments(toArray(shipRes?.data, 'shipments'));
+        setDriverVehicles(toArray(vehRes?.data, 'vehicles'));
+        setDriverLeaves(toArray(leaveRes?.data, 'leaves'));
+        setDriverNotifications(toArray(notifRes?.data, 'notifications'));
       }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
@@ -709,19 +715,25 @@ export default function Dashboard() {
     );
   };
 
+  // Derived Safe Arrays
+  const shipmentsList = Array.isArray(shipments) ? shipments : (Array.isArray(shipments?.shipments) ? shipments.shipments : []);
+  const tripsList = Array.isArray(trips) ? trips : (Array.isArray(trips?.trips) ? trips.trips : []);
+  const maintenanceList = Array.isArray(maintenanceRecords) ? maintenanceRecords : (Array.isArray(maintenanceRecords?.records) ? maintenanceRecords.records : []);
+  const vehiclesArr = Array.isArray(vehiclesList) ? vehiclesList : (Array.isArray(vehiclesList?.vehicles) ? vehiclesList.vehicles : []);
+
   // Derived Metrics
-  const activeShipmentsCount = shipments.filter(s =>
+  const activeShipmentsCount = shipmentsList.filter(s =>
     ['created', 'assigned', 'in transit', 'delayed'].includes((s.status || '').toLowerCase())
   ).length;
 
-  const deliveredShipmentsCount = shipments.filter(s => (s.status || '').toLowerCase() === 'delivered').length;
-  const activeTripsCount = trips.filter(t => (t.status || '').toLowerCase().includes('transit')).length;
+  const deliveredShipmentsCount = shipmentsList.filter(s => (s.status || '').toLowerCase() === 'delivered').length;
+  const activeTripsCount = tripsList.filter(t => (t.status || '').toLowerCase().includes('transit')).length;
 
-  const upcomingMaintenanceCount = maintenanceRecords.filter(m =>
+  const upcomingMaintenanceCount = maintenanceList.filter(m =>
     ['scheduled', 'in progress', 'pending'].includes((m.status || '').toLowerCase())
   ).length;
 
-  const myActiveTrip = trips.find(t => (t.status || '').toLowerCase().includes('transit') || (t.status || '').toLowerCase() === 'assigned');
+  const myActiveTrip = tripsList.find(t => (t.status || '').toLowerCase().includes('transit') || (t.status || '').toLowerCase() === 'assigned');
 
   // Chart Data Constructions
   const statusPieData = [
@@ -732,7 +744,7 @@ export default function Dashboard() {
     { name: 'Out of Service', value: vehicleStats.out_of_service || 0 },
   ].filter(d => d.value > 0);
 
-  const vehicleTypeCounts = vehiclesList.reduce((acc, v) => {
+  const vehicleTypeCounts = vehiclesArr.reduce((acc, v) => {
     const type = v.vehicle_type || 'Unknown';
     acc[type] = (acc[type] || 0) + 1;
     return acc;
@@ -745,7 +757,7 @@ export default function Dashboard() {
     return acc;
   }, {});
 
-  shipments.forEach((s) => {
+  shipmentsList.forEach((s) => {
     const st = (s.status || '').trim();
     const matchedKey = standardShipmentStatuses.find(k => k.toLowerCase() === st.toLowerCase());
     if (matchedKey) {
@@ -883,7 +895,7 @@ export default function Dashboard() {
                       <span className="kpi-badge">{activeShipmentsCount} Active</span>
                     </div>
                     <span className="kpi-label">Total Active Shipments</span>
-                    <strong className="kpi-number">{shipments.length}</strong>
+                    <strong className="kpi-number">{shipmentsList.length}</strong>
                     <span className="kpi-sub-stats">{activeShipmentsCount} loads in dispatch / transit</span>
                   </div>
 
@@ -1013,7 +1025,7 @@ export default function Dashboard() {
               <div className="stat-card">
                 <div className="stat-details">
                   <span className="stat-label">Total Shipments</span>
-                  <span className="stat-value">{deliveryPerf?.total_shipments ?? shipments.length}</span>
+                  <span className="stat-value">{deliveryPerf?.total_shipments ?? shipmentsList.length}</span>
                 </div>
               </div>
               <div className="stat-card">
@@ -1062,7 +1074,7 @@ export default function Dashboard() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span className="font-semibold">Delayed Shipment Exceptions:</span>
-                    <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{alerts.length} Pending</span>
+                    <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{alertsList.length} Pending</span>
                   </div>
                 </div>
                 <Link to="/live-map" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
@@ -1085,7 +1097,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {shipments.slice(0, 8).map((s) => (
+                  {shipmentsList.slice(0, 8).map((s) => (
                     <tr key={s.shipment_id || s.id}>
                       <td className="font-semibold">{s.shipment_code || s.tracking_number}</td>
                       <td>{s.origin}</td>
@@ -1112,7 +1124,7 @@ export default function Dashboard() {
               <div className="stat-card">
                 <div className="stat-details">
                   <span className="stat-label">Total Operations Shipments</span>
-                  <span className="stat-value">{operationalData?.period_total_shipments || shipments.length}</span>
+                  <span className="stat-value">{operationalData?.period_total_shipments || shipmentsList.length}</span>
                 </div>
               </div>
               <div className="stat-card">
@@ -1250,7 +1262,7 @@ export default function Dashboard() {
                 <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1rem' }}>
                   Upcoming and in-progress vehicle maintenance records:
                 </p>
-                {maintenanceRecords.length === 0 ? (
+                {maintenanceList.length === 0 ? (
                   <p style={{ color: '#94a3b8' }}>No vehicle maintenance records scheduled.</p>
                 ) : (
                   <table className="att-table">
@@ -1263,7 +1275,7 @@ export default function Dashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {maintenanceRecords.slice(0, 5).map((m) => (
+                      {maintenanceList.slice(0, 5).map((m) => (
                         <tr key={m.maintenance_id || m.id}>
                           <td className="font-semibold">{m.vehicle_id?.slice(0, 8) || 'Vehicle'}</td>
                           <td>{m.service_type || 'General Service'}</td>

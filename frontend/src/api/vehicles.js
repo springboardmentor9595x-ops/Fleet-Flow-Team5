@@ -1,11 +1,33 @@
 import api from './axios';
 
-export function getVehicles(params = {}) {
-  return api.get('/vehicles/', { params });
+export async function getVehicles(params = {}) {
+  const res = await api.get('/vehicles/', { params });
+  if (res.data && !Array.isArray(res.data) && Array.isArray(res.data.vehicles)) {
+    return { ...res, data: res.data.vehicles, raw: res.data };
+  }
+  return res;
 }
 
-export function getVehicleStats() {
-  return api.get('/vehicles/stats/summary');
+export async function getVehicleStats() {
+  try {
+    return await api.get('/vehicles/stats/summary');
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      const res = await api.get('/dashboard/fleet');
+      const sb = res.data?.status_breakdown || {};
+      return {
+        data: {
+          total: res.data?.total_vehicles || 0,
+          available: sb['Available'] || 0,
+          in_transit: (sb['In Transit'] || 0) + (sb['In Use'] || 0),
+          maintenance: sb['Maintenance'] || 0,
+          out_of_service: sb['Inactive'] || 0,
+          assigned: sb['Assigned'] || 0,
+        },
+      };
+    }
+    throw err;
+  }
 }
 
 export function getVehicleById(id) {

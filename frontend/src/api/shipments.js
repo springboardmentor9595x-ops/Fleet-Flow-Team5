@@ -1,7 +1,11 @@
 import api from './axios';
 
-export function getShipments(params = {}) {
-  return api.get('/shipments/', { params });
+export async function getShipments(params = {}) {
+  const res = await api.get('/shipments/', { params });
+  if (res.data && !Array.isArray(res.data) && Array.isArray(res.data.shipments)) {
+    return { ...res, data: res.data.shipments, raw: res.data };
+  }
+  return res;
 }
 
 export function getShipmentById(id) {
@@ -16,8 +20,15 @@ export function trackShipmentByNumber(trackingNumber) {
   return api.get(`/shipments/tracking/${trackingNumber}`);
 }
 
-export function getDelayedAlerts() {
-  return api.get('/shipments/alerts/delayed');
+export async function getDelayedAlerts() {
+  try {
+    return await api.get('/shipments/alerts/delayed');
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      return await api.get('/shipments/alerts');
+    }
+    throw err;
+  }
 }
 
 export function createShipment(data) {
