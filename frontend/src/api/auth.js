@@ -23,15 +23,32 @@ export function getMe(token) {
   });
 }
 
-export function verifyEmail(email, code) {
-  if (typeof email === 'object' && email !== null) {
-    return api.post('/auth/verify-email', email);
+export async function verifyEmail(email, code) {
+  const cleanEmail = typeof email === 'object' && email !== null ? email.email : email;
+  const cleanCode = typeof email === 'object' && email !== null ? (email.code || email.otp) : code;
+
+  try {
+    return await api.post('/auth/verify-email', { email: cleanEmail, code: cleanCode });
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      // Fallback for deployed Render backend supporting /auth/verify-otp
+      return await api.post('/auth/verify-otp', { email: cleanEmail, otp: cleanCode });
+    }
+    throw err;
   }
-  return api.post('/auth/verify-email', { email, code });
 }
 
-export function resendVerification(email) {
-  return api.post('/auth/resend-verification', { email });
+export async function resendVerification(email) {
+  const cleanEmail = typeof email === 'object' && email !== null ? email.email : email;
+  try {
+    return await api.post('/auth/resend-verification', { email: cleanEmail });
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      // Fallback for deployed Render backend supporting /auth/resend-otp
+      return await api.post('/auth/resend-otp', { email: cleanEmail });
+    }
+    throw err;
+  }
 }
 
 export function updateProfile(data) {

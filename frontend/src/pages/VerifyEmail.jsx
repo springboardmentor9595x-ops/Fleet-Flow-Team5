@@ -62,16 +62,24 @@ function VerifyEmail() {
       const statusType = response.data?.status;
 
       setSuccess(true);
+      if (response.data?.access_token) {
+        localStorage.setItem('fleetflow_token', response.data.access_token);
+      }
+
       if (statusType === 'already_verified') {
         toast.info('Email address is already verified.');
       } else {
         toast.success('Email verified successfully!');
       }
 
-      // Redirect user to LOGIN page on successful verification
+      // Redirect user to LOGIN page or Dashboard on successful verification
       setTimeout(() => {
-        navigate('/login');
-      }, 2000);
+        if (response.data?.access_token) {
+          window.location.href = '/dashboard';
+        } else {
+          navigate('/login');
+        }
+      }, 1500);
     } catch (err) {
       const detail = err.response?.data?.detail;
       const message = typeof detail === 'string' ? detail : 'Verification failed. Please check your code and try again.';
