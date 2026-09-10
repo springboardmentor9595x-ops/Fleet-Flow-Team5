@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.analytics import router as analytics_router
@@ -28,6 +28,38 @@ from sqlalchemy import text
 async def lifespan(app: FastAPI):
     # Startup: attempt to initialize Redis pubsub
     await manager.init_redis()
+
+    # Auto-seed database core users for deployment
+    try:
+        from app.database import SessionLocal
+        from app.models.user import User
+        from app.core.security import hash_password
+
+        db = SessionLocal()
+        accounts = [
+            ("sweatyanu1412@gmail.com", "Sweaty Anu", "Dispatcher"),
+            ("durgabhavani6954@gmail.com", "Durga Bhavani", "Admin"),
+            ("durgabhavaniakana11@gmail.com", "Durga Akana", "FleetManager"),
+            ("nandagunasri@gmail.com", "Nanda Guna Sri", "Driver"),
+        ]
+
+        pw_hash = hash_password("Fleetflow@123")
+
+        for email, name, role in accounts:
+            u = db.query(User).filter(User.email == email).first()
+            if not u:
+                u = User(full_name=name, email=email, password=pw_hash, role=role, is_verified=True)
+                db.add(u)
+            else:
+                u.role = role
+                u.is_verified = True
+                db.add(u)
+
+        db.commit()
+        db.close()
+    except Exception as e:
+        print(f"[STARTUP SEED WARNING] Could not auto-seed core users: {e}")
+
     yield
     # Shutdown
 
